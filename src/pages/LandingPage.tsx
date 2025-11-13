@@ -79,7 +79,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="container mx-auto px-4 py-8 mt-20 border-t">
         <div className="text-center text-gray-600">
-          <p>&copy; 2024 {APP_NAME}. Built with React, TypeScript, and TailwindCSS.</p>
+          <p>&copy; 2025 {APP_NAME}. Built with React, TypeScript, and TailwindCSS.</p>
         </div>
       </footer>
     </div>
