@@ -7,7 +7,8 @@ export interface User {
 
 export interface AuthResponse {
   user: User
-  token: string
+  accessToken: string
+  token?: string // Legacy support
 }
 
 export interface LoginCredentials {

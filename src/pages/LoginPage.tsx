@@ -27,8 +27,15 @@ export default function LoginPage() {
   const loginMutation = useMutation({
     mutationFn: authService.login,
     onSuccess: (data: AuthResponse) => {
-      console.log('Login success, data:', data)
-      setAuth(data.user, data.token)
+      console.log('🎉 Login success, full data:', data)
+      const token = data.accessToken || data.token
+      console.log('🔑 Extracted token:', token ? token.substring(0, 30) + '...' : 'NO TOKEN!')
+      if (!token) {
+        console.error('❌ No token in response!')
+        addToast('Login failed: No authentication token received', 'error', '❌ Error')
+        return
+      }
+      setAuth(data.user, token)
       addToast('Login successful! Redirecting to dashboard...', 'success', '✅ Success')
       console.log('Toast added, navigating to dashboard')
       setTimeout(() => navigate(ROUTES.DASHBOARD), 500)

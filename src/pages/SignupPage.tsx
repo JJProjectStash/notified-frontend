@@ -28,8 +28,15 @@ export default function SignupPage() {
   const signupMutation = useMutation({
     mutationFn: authService.signup,
     onSuccess: (data: AuthResponse) => {
-      console.log('Signup success, data:', data)
-      setAuth(data.user, data.token)
+      console.log('🎉 Signup success, full data:', data)
+      const token = data.accessToken || data.token
+      console.log('🔑 Extracted token:', token ? token.substring(0, 30) + '...' : 'NO TOKEN!')
+      if (!token) {
+        console.error('❌ No token in response!')
+        addToast('Signup failed: No authentication token received', 'error', '❌ Error')
+        return
+      }
+      setAuth(data.user, token)
       addToast('Account created successfully! Welcome aboard! 🎉', 'success', '✅ Success')
       setTimeout(() => navigate(ROUTES.DASHBOARD), 500)
     },

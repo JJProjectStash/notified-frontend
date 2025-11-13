@@ -3,7 +3,14 @@ import { LoginCredentials, SignupData, AuthResponse, User } from '@/types'
 
 export const authService = {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
+    console.log('🔐 Calling login API with:', { email: credentials.email })
     const response = await apiClient.post<AuthResponse>('/auth/login', credentials)
+    console.log('✅ Login API response:', response.data)
+    console.log(
+      '🔑 Token received:',
+      response.data.token ? response.data.token.substring(0, 30) + '...' : 'NO TOKEN!'
+    )
+    console.log('👤 User received:', response.data.user)
     return response.data
   },
 
