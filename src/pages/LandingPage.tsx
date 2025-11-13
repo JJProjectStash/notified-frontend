@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Bell, Users, BookOpen, ClipboardList } from 'lucide-react'
 import { ROUTES, APP_NAME } from '@/utils/constants'
@@ -90,7 +91,7 @@ function FeatureCard({
   title,
   description,
 }: {
-  icon: React.ReactNode
+  icon: ReactNode
   title: string
   description: string
 }) {

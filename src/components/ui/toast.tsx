@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useToastStore } from '@/store/toastStore'

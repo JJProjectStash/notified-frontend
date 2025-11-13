@@ -1,6 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { ToastContainer } from '@/components/ui/toast'
-import { useAuthStore } from '@/store/authStore'
 import { ROUTES } from '@/utils/constants'
 
 // Pages

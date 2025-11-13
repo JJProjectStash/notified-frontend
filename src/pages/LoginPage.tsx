@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useMutation } from '@tanstack/react-query'
@@ -15,7 +15,7 @@ import { validateEmail } from '@/lib/utils'
 export default function LoginPage() {
   const navigate = useNavigate()
   const { setAuth } = useAuthStore()
-  const toast = useToast()
+  const { addToast } = useToast()
 
   const [formData, setFormData] = useState({
     email: '',
@@ -25,17 +25,19 @@ export default function LoginPage() {
 
   const loginMutation = useMutation({
     mutationFn: authService.login,
-    onSuccess: (data) => {
-      setAuth(data.user, data.token)
-      toast.success(TOAST_MESSAGES.LOGIN_SUCCESS)
+    onSuccess: (data: unknown) => {
+      const authData = data as { user: unknown; token: string }
+      setAuth(authData.user, authData.token)
+      addToast('Login successful!', 'success')
       navigate(ROUTES.DASHBOARD)
     },
-    onError: (error: any) => {
-      toast.error(error.message || TOAST_MESSAGES.ERROR)
+    onError: (error: unknown) => {
+      const message = (error as { message?: string })?.message || TOAST_MESSAGES.ERROR
+      addToast(message, 'error')
     },
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
 
     // Validation

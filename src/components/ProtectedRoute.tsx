@@ -1,9 +1,10 @@
 import { Navigate } from 'react-router-dom'
+import { ReactNode } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { ROUTES } from '@/utils/constants'
 
 interface ProtectedRouteProps {
-  children: React.ReactNode
+  children: ReactNode
   allowedRoles?: string[]
 }
 
