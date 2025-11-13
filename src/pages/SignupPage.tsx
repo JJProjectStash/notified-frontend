@@ -16,7 +16,7 @@ export default function SignupPage() {
   const navigate = useNavigate()
   const { setAuth } = useAuthStore()
   const toast = useToast()
-  
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -38,31 +38,31 @@ export default function SignupPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // Validation
     const newErrors: { name?: string; email?: string; password?: string } = {}
-    
+
     if (!formData.name) {
       newErrors.name = 'Name is required'
     }
-    
+
     if (!formData.email) {
       newErrors.email = 'Email is required'
     } else if (!validateEmail(formData.email)) {
       newErrors.email = 'Invalid email format'
     }
-    
+
     if (!formData.password) {
       newErrors.password = 'Password is required'
     } else if (formData.password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters'
     }
-    
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       return
     }
-    
+
     setErrors({})
     signupMutation.mutate(formData)
   }
@@ -80,7 +80,7 @@ export default function SignupPage() {
             <Bell className="w-10 h-10 text-primary mr-2" />
             <h1 className="text-3xl font-bold text-gray-900">{APP_NAME}</h1>
           </div>
-          
+
           {/* Title */}
           <div className="text-center mb-8">
             <h2 className="text-2xl font-semibold text-gray-900">Create an account</h2>
@@ -137,11 +137,7 @@ export default function SignupPage() {
               {errors.password && <p className="text-sm text-red-600 mt-1">{errors.password}</p>}
             </div>
 
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={signupMutation.isPending}
-            >
+            <Button type="submit" className="w-full" disabled={signupMutation.isPending}>
               {signupMutation.isPending ? 'Creating account...' : 'Sign Up'}
             </Button>
           </form>

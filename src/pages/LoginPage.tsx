@@ -16,7 +16,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const { setAuth } = useAuthStore()
   const toast = useToast()
-  
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -37,25 +37,25 @@ export default function LoginPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // Validation
     const newErrors: { email?: string; password?: string } = {}
-    
+
     if (!formData.email) {
       newErrors.email = 'Email is required'
     } else if (!validateEmail(formData.email)) {
       newErrors.email = 'Invalid email format'
     }
-    
+
     if (!formData.password) {
       newErrors.password = 'Password is required'
     }
-    
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       return
     }
-    
+
     setErrors({})
     loginMutation.mutate(formData)
   }
@@ -73,7 +73,7 @@ export default function LoginPage() {
             <Bell className="w-10 h-10 text-primary mr-2" />
             <h1 className="text-3xl font-bold text-gray-900">{APP_NAME}</h1>
           </div>
-          
+
           {/* Title */}
           <div className="text-center mb-8">
             <h2 className="text-2xl font-semibold text-gray-900">Welcome back</h2>
@@ -114,11 +114,7 @@ export default function LoginPage() {
               {errors.password && <p className="text-sm text-red-600 mt-1">{errors.password}</p>}
             </div>
 
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={loginMutation.isPending}
-            >
+            <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
               {loginMutation.isPending ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>

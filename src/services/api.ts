@@ -38,7 +38,7 @@ apiClient.interceptors.response.use(
       const data = error.response.data as { message?: string; errors?: { [key: string]: string[] } }
       apiError.message = data.message || 'An error occurred'
       apiError.errors = data.errors
-      
+
       // Handle unauthorized access
       if (error.response.status === 401) {
         localStorage.removeItem('token')

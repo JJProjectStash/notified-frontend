@@ -22,7 +22,7 @@ function App() {
         <Route path={ROUTES.HOME} element={<LandingPage />} />
         <Route path={ROUTES.LOGIN} element={<LoginPage />} />
         <Route path={ROUTES.SIGNUP} element={<SignupPage />} />
-        
+
         {/* Protected Routes */}
         <Route
           path={ROUTES.DASHBOARD}
@@ -56,7 +56,7 @@ function App() {
             </ProtectedRoute>
           }
         />
-        
+
         {/* Fallback */}
         <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
       </Routes>
