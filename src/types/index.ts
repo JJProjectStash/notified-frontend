@@ -1,40 +1,71 @@
+// ============================================================================
+// USER & AUTHENTICATION TYPES
+// ============================================================================
+
+/**
+ * User role types for authorization
+ */
+export type UserRole = 'superadmin' | 'admin' | 'staff'
+
+/**
+ * User entity from the authentication system
+ */
 export interface User {
-  id: number
+  readonly id: number
   name: string
   email: string
-  role: 'superadmin' | 'admin' | 'staff'
+  role: UserRole
 }
 
+/**
+ * Authentication response from login/signup endpoints
+ */
 export interface AuthResponse {
   user: User
   accessToken: string
-  token?: string // Legacy support
+  token?: string // Legacy support for backward compatibility
 }
 
+/**
+ * Login credentials payload
+ */
 export interface LoginCredentials {
   email: string
   password: string
 }
 
+/**
+ * Signup data payload
+ */
 export interface SignupData {
   name: string
   email: string
   password: string
 }
 
+// ============================================================================
+// STUDENT TYPES
+// ============================================================================
+
+/**
+ * Student entity with all database fields
+ */
 export interface Student {
-  id: number
-  studentNumber: string
-  firstName: string
-  lastName: string
-  email: string
-  section?: string
-  guardianName?: string
-  guardianEmail?: string
-  createdAt: string
-  updatedAt?: string
+  readonly id: number
+  studentNumber: string // Format: YY-NNNN (e.g., 24-0001)
+  firstName: string // Min 2, Max 50 characters
+  lastName: string // Min 2, Max 50 characters
+  email: string // Valid email format
+  section?: string // Optional, alphanumeric
+  guardianName?: string // Optional, min 2 characters if provided
+  guardianEmail?: string // Optional, valid email if provided
+  createdAt: string // ISO 8601 date string
+  updatedAt?: string // ISO 8601 date string
 }
 
+/**
+ * Form data for creating or updating a student
+ */
 export interface StudentFormData {
   studentNumber: string
   firstName: string
@@ -45,16 +76,26 @@ export interface StudentFormData {
   guardianEmail?: string
 }
 
+// ============================================================================
+// SUBJECT TYPES
+// ============================================================================
+
+/**
+ * Subject entity with all database fields
+ */
 export interface Subject {
-  id: number
-  subjectCode: string
+  readonly id: number
+  subjectCode: string // Format: e.g., "CS101", "MATH201"
   subjectName: string
   section: string
-  yearLevel: number
-  createdAt: string
-  updatedAt?: string
+  yearLevel: number // 1-4 for college years
+  createdAt: string // ISO 8601 date string
+  updatedAt?: string // ISO 8601 date string
 }
 
+/**
+ * Form data for creating or updating a subject
+ */
 export interface SubjectFormData {
   subjectCode: string
   subjectName: string
@@ -62,17 +103,36 @@ export interface SubjectFormData {
   yearLevel: number
 }
 
+// ============================================================================
+// RECORD TYPES
+// ============================================================================
+
+/**
+ * Record type discriminated union
+ */
+export type RecordType = 'arrival' | 'departure' | 'email_sent' | 'Arrival' | 'Departure'
+
+/**
+ * Attendance/notification record entity
+ */
 export interface Record {
-  id: number
+  readonly id: number
   studentId: number
   studentNumber: string
   firstName: string
   lastName: string
   email: string
-  recordType: string
-  createdAt: string
+  recordType: RecordType
+  createdAt: string // ISO 8601 date string
 }
 
+// ============================================================================
+// DASHBOARD TYPES
+// ============================================================================
+
+/**
+ * Dashboard statistics overview
+ */
 export interface DashboardStats {
   totalStudents: number
   totalSubjects: number
@@ -80,8 +140,137 @@ export interface DashboardStats {
   todayRecords: number
 }
 
+// ============================================================================
+// EMAIL TYPES
+// ============================================================================
+
+/**
+ * Email data payload for sending emails
+ */
+export interface EmailData {
+  to: string | string[]
+  subject: string
+  message: string
+  attachments?: File[]
+}
+
+/**
+ * Email configuration response
+ */
+export interface EmailConfig {
+  configured: boolean
+  provider?: string
+  fromEmail?: string
+}
+
+// ============================================================================
+// API RESPONSE TYPES
+// ============================================================================
+
+/**
+ * Standard API success response wrapper
+ */
+export interface ApiResponse<T = unknown> {
+  success: true
+  data: T
+  message?: string
+}
+
+/**
+ * API error response structure
+ */
 export interface ApiError {
   message: string
   status: number
+  code?: string
   errors?: { [key: string]: string[] }
+}
+
+/**
+ * Paginated API response
+ */
+export interface PaginatedResponse<T> {
+  success: true
+  data: T[]
+  pagination: {
+    currentPage: number
+    totalPages: number
+    totalItems: number
+    itemsPerPage: number
+    hasNextPage: boolean
+    hasPreviousPage: boolean
+  }
+}
+
+// ============================================================================
+// UTILITY TYPES
+// ============================================================================
+
+/**
+ * Toast notification types
+ */
+export type ToastType = 'success' | 'error' | 'warning' | 'info'
+
+/**
+ * Toast notification data structure
+ */
+export interface Toast {
+  id: string
+  message: string
+  type: ToastType
+  duration?: number
+}
+
+/**
+ * Form validation error structure
+ */
+export type FormErrors<T> = {
+  [K in keyof T]?: string
+}
+
+/**
+ * Loading state for async operations
+ */
+export type LoadingState = 'idle' | 'loading' | 'success' | 'error'
+
+// ============================================================================
+// TYPE GUARDS
+// ============================================================================
+
+/**
+ * Type guard to check if an error is an ApiError
+ */
+export function isApiError(error: unknown): error is ApiError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof (error as ApiError).message === 'string' &&
+    'status' in error &&
+    typeof (error as ApiError).status === 'number'
+  )
+}
+
+/**
+ * Type guard to check if an error has a response property (Axios error)
+ */
+export function isAxiosError(
+  error: unknown
+): error is { response: { status: number; data: unknown } } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'response' in error &&
+    typeof (error as any).response === 'object'
+  )
+}
+
+/**
+ * Type guard to check if it's a network error
+ */
+export function isNetworkError(error: unknown): boolean {
+  return (
+    error instanceof TypeError &&
+    (error.message === 'Failed to fetch' || error.message === 'Network request failed')
+  )
 }
