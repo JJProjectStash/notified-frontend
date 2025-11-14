@@ -1,9 +1,18 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Users, BookOpen, ClipboardList, TrendingUp, ArrowRight, Activity } from 'lucide-react'
+import {
+  Users,
+  BookOpen,
+  ClipboardList,
+  TrendingUp,
+  ArrowRight,
+  Activity,
+  LayoutDashboard,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/ui/page-header'
 import { recordService } from '@/services/record.service'
 import { useAuthStore } from '@/store/authStore'
 import { useToast } from '@/store/toastStore'
@@ -99,19 +108,39 @@ export default function DashboardPage() {
   return (
     <MainLayout>
       <div className="space-y-8">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            {getGreeting()}, {user?.name}! 👋
-          </h1>
-          <p className="text-gray-600 mt-2 text-lg">
-            Here's an overview of your student management system
-          </p>
-        </motion.div>
+        {/* Page Header */}
+        <PageHeader
+          title={`${getGreeting()}, ${user?.name}!`}
+          description="Here's an overview of your student management system"
+          icon={LayoutDashboard}
+          gradient="from-indigo-600 via-purple-600 to-pink-600"
+          stats={[
+            {
+              label: 'Total Students',
+              value: stats?.totalStudents || 0,
+              icon: Users,
+              color: 'blue',
+            },
+            {
+              label: 'Total Subjects',
+              value: stats?.totalSubjects || 0,
+              icon: BookOpen,
+              color: 'green',
+            },
+            {
+              label: 'Total Records',
+              value: stats?.totalRecords || 0,
+              icon: ClipboardList,
+              color: 'purple',
+            },
+            {
+              label: "Today's Activity",
+              value: stats?.todayRecords || 0,
+              icon: Activity,
+              color: 'orange',
+            },
+          ]}
+        />
 
         {/* Stats Grid */}
         <motion.div

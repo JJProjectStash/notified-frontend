@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import MainLayout from '@/layouts/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PageHeader } from '@/components/ui/page-header'
 import { useToast } from '@/store/toastStore'
 import { subjectService } from '@/services/subject.service'
 import { Subject, SubjectFormData } from '@/types'
@@ -116,27 +117,38 @@ export default function SubjectsPage() {
 
   return (
     <MainLayout>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <BookOpen className="w-8 h-8 text-purple-600" />
-              Subjects
-            </h1>
-            <p className="text-gray-600 mt-1">Manage subjects and class sections</p>
-          </div>
-          <Button
-            className="shadow-lg bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white"
-            onClick={handleAddSubject}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Subject
-          </Button>
-        </div>
+      <div className="space-y-6">
+        {/* Page Header */}
+        <PageHeader
+          title="Subjects"
+          description="Manage subjects and class sections"
+          icon={BookOpen}
+          gradient="from-purple-600 via-violet-600 to-indigo-600"
+          stats={[
+            {
+              label: 'Total Subjects',
+              value: subjects.length,
+              icon: BookOpen,
+              color: 'purple',
+            },
+            {
+              label: 'Active',
+              value: filteredSubjects.length,
+              icon: Eye,
+              color: 'green',
+            },
+          ]}
+          actions={[
+            {
+              label: 'Add Subject',
+              onClick: handleAddSubject,
+              icon: Plus,
+              variant: 'primary',
+            },
+          ]}
+        />
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="space-y-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

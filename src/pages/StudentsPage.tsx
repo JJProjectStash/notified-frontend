@@ -20,6 +20,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import MainLayout from '@/layouts/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PageHeader } from '@/components/ui/page-header'
 import { useToast } from '@/store/toastStore'
 import { studentService } from '@/services/student.service'
 import { Student, StudentFormData } from '@/types'
@@ -284,16 +285,48 @@ export default function StudentsPage() {
 
   return (
     <MainLayout>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <Users className="w-8 h-8 text-primary" />
-              Students
-            </h1>
-            <p className="text-gray-600 mt-1">Manage student records and information</p>
-          </div>
+      <div className="space-y-6">
+        {/* Page Header */}
+        <PageHeader
+          title="Students"
+          description="Manage student records and information"
+          icon={Users}
+          gradient="from-blue-600 via-indigo-600 to-purple-600"
+          stats={[
+            {
+              label: 'Total Students',
+              value: students.length,
+              icon: Users,
+              color: 'blue',
+            },
+            {
+              label: 'Active Students',
+              value: filteredStudents.length,
+              icon: CheckCircle,
+              color: 'green',
+            },
+          ]}
+          actions={[
+            {
+              label: 'Import Excel',
+              onClick: () => fileInputRef.current?.click(),
+              icon: Upload,
+              variant: 'outline',
+              disabled: isImporting,
+            },
+            {
+              label: 'Add Student',
+              onClick: () => {
+                setEditingStudent(null)
+                setIsModalOpen(true)
+              },
+              icon: Plus,
+              variant: 'primary',
+            },
+          ]}
+        />
+
+        <div className="space-y-6">
           <div className="flex gap-3">
             <Button
               variant="outline"

@@ -9,11 +9,13 @@ import {
   Download,
   CheckCircle,
   DoorOpen,
+  ClipboardList,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import MainLayout from '@/layouts/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PageHeader } from '@/components/ui/page-header'
 import { useToast } from '@/store/toastStore'
 import { recordService } from '@/services/record.service'
 import { Record } from '@/types'
@@ -39,10 +41,10 @@ export default function RecordsPage() {
   // Filter records
   const filteredRecords = records.filter((record) => {
     const matchesSearch =
-      record.studentNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.email.toLowerCase().includes(searchTerm.toLowerCase())
+      record.studentNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.email?.toLowerCase().includes(searchTerm.toLowerCase())
 
     const matchesType = filterType === 'all' || record.recordType === filterType
 
@@ -76,34 +78,56 @@ Date Range: ${selectedDate || 'All Time'}
 
   return (
     <MainLayout>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <FileText className="w-8 h-8 text-teal-600" />
-              Attendance Records
-            </h1>
-            <p className="text-gray-600 mt-1">Track and manage student attendance</p>
-          </div>
-          <div className="flex gap-3">
-            <Button variant="outline" className="shadow-neumorphic" onClick={handleShowSummary}>
-              <BarChart3 className="w-4 h-4 mr-2" />
-              Summary
-            </Button>
-            <Button
-              variant="outline"
-              className="shadow-neumorphic"
-              onClick={() => addToast('Export feature coming soon!', 'info')}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export
-            </Button>
-          </div>
-        </div>
+      <div className="space-y-6">
+        {/* Page Header */}
+        <PageHeader
+          title="Attendance Records"
+          description="Track and manage student attendance"
+          icon={ClipboardList}
+          gradient="from-green-600 via-emerald-600 to-teal-600"
+          stats={[
+            {
+              label: 'Total Records',
+              value: filteredRecords.length,
+              icon: FileText,
+              color: 'blue',
+            },
+            {
+              label: 'Arrivals',
+              value: arrivals,
+              icon: CheckCircle,
+              color: 'green',
+            },
+            {
+              label: 'Departures',
+              value: departures,
+              icon: DoorOpen,
+              color: 'orange',
+            },
+            {
+              label: "Today's Activity",
+              value: todayRecords.length,
+              icon: Calendar,
+              color: 'purple',
+            },
+          ]}
+          actions={[
+            {
+              label: 'Summary',
+              onClick: handleShowSummary,
+              icon: BarChart3,
+              variant: 'outline',
+            },
+            {
+              label: 'Export',
+              onClick: () => addToast('Export feature coming soon!', 'info'),
+              icon: Download,
+              variant: 'outline',
+            },
+          ]}
+        />
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="space-y-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

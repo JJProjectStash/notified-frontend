@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PageHeader } from '@/components/ui/page-header'
 import api from '@/services/api'
 import { useToast } from '@/store/toastStore'
 import MainLayout from '@/layouts/MainLayout'
@@ -71,13 +72,17 @@ export default function EmailHistoryPage() {
         },
       })
 
-      console.log('[EmailHistory] Loaded emails:', response.data.data.length)
-      setEmails(response.data.data)
+      // Response structure: { success, data: records[], pagination: {...} }
+      const emailData = response.data?.data || []
+      const paginationData = response.data?.pagination
+
+      console.log('[EmailHistory] Loaded emails:', emailData.length, 'pagination:', paginationData)
+      setEmails(emailData)
       setPagination(
-        response.data.pagination || {
+        paginationData || {
           page,
           limit: 20,
-          total: response.data.data.length,
+          total: emailData.length,
           totalPages: 1,
         }
       )
@@ -126,22 +131,28 @@ export default function EmailHistoryPage() {
 
   return (
     <MainLayout>
-      <div className="p-8 space-y-6">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between"
-        >
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Email History</h1>
-            <p className="text-gray-600 mt-1">View all sent emails and notifications</p>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <Mail className="w-4 h-4" />
-            <span>{pagination.total} total emails sent</span>
-          </div>
-        </motion.div>
+      <div className="space-y-6">
+        {/* Page Header */}
+        <PageHeader
+          title="Email History"
+          description="View all sent emails and notifications"
+          icon={Mail}
+          gradient="from-orange-600 via-amber-600 to-yellow-600"
+          stats={[
+            {
+              label: 'Total Emails',
+              value: pagination.total,
+              icon: Mail,
+              color: 'orange',
+            },
+            {
+              label: 'Displayed',
+              value: filteredEmails.length,
+              icon: Filter,
+              color: 'blue',
+            },
+          ]}
+        />
 
         {/* Filters */}
         <motion.div

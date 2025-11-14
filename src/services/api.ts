@@ -44,6 +44,12 @@ apiClient.interceptors.response.use(
       data: response.data,
     })
 
+    // Special handling for /emails/history - keep full response for pagination
+    if (response.config.url?.includes('/emails/history')) {
+      console.log('Email history response - preserving full structure')
+      return response
+    }
+
     // If backend wraps data in { success, data, message } format, extract it
     if (response.data && typeof response.data === 'object' && 'data' in response.data) {
       console.log('Extracting nested data from response')
