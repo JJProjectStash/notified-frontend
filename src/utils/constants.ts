@@ -11,6 +11,7 @@ export const ROUTES = {
   STUDENTS: '/students',
   SUBJECTS: '/subjects',
   RECORDS: '/records',
+  EMAIL_HISTORY: '/email-history',
 } as const
 
 export const ROLES = {

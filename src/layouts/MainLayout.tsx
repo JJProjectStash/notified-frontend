@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Home, Users, BookOpen, ClipboardList, LogOut, Bell, CheckCircle } from 'lucide-react'
+import { Home, Users, BookOpen, ClipboardList, Mail, LogOut, Bell, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/authStore'
 import { useToast } from '@/store/toastStore'
@@ -55,6 +55,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
       colorClass: 'bg-gradient-to-r from-green-600 to-emerald-600',
       hoverClass: 'hover:bg-green-50',
       textClass: 'text-green-700',
+    },
+    {
+      label: 'Email History',
+      icon: Mail,
+      path: ROUTES.EMAIL_HISTORY,
+      colorClass: 'bg-gradient-to-r from-orange-600 to-amber-600',
+      hoverClass: 'hover:bg-orange-50',
+      textClass: 'text-orange-700',
     },
   ]
 

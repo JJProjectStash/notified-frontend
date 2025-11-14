@@ -1,10 +1,20 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Send, Mail, AlertCircle, Loader2, Paperclip } from 'lucide-react'
+import {
+  X,
+  Send,
+  Mail,
+  AlertCircle,
+  Loader2,
+  Paperclip,
+  AlertTriangle,
+  ShieldAlert,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/store/toastStore'
+import { useAuthStore } from '@/store/authStore'
 
 interface EmailModalProps {
   isOpen: boolean
@@ -20,6 +30,15 @@ export interface EmailData {
   attachments?: File[]
 }
 
+// Backend validation constants (synced with backend)
+const VALIDATION = {
+  SUBJECT_MIN: 3,
+  SUBJECT_MAX: 200,
+  MESSAGE_MIN: 10,
+  MESSAGE_MAX: 5000,
+  MAX_RECIPIENTS: 100,
+} as const
+
 export default function EmailModal({ isOpen, onClose, recipients, onSend }: EmailModalProps) {
   const [to, setTo] = useState('')
   const [subject, setSubject] = useState('')
@@ -29,11 +48,16 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
   const [error, setError] = useState('')
   const { addToast } = useToast()
 
+  // Get user from auth store for permission checks
+  const user = useAuthStore((state) => state.user)
+  const isBulkAllowed = user && ['admin', 'staff'].includes(user.role)
+
   const recipientCount = Array.isArray(recipients)
     ? recipients.length
     : recipients.split(',').filter(Boolean).length
 
   const isMultipleRecipients = recipientCount > 1
+  const hasPermissionIssue = isMultipleRecipients && !isBulkAllowed
 
   useEffect(() => {
     if (isOpen) {
@@ -56,13 +80,17 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
   const validateForm = (): boolean => {
     setError('')
 
+    // Check recipient email
     if (!to.trim()) {
       setError('Please enter recipient email address')
       return false
     }
 
-    // Validate all emails
-    const emails = to.split(',').map((e) => e.trim())
+    // Validate all email addresses
+    const emails = to
+      .split(',')
+      .map((e) => e.trim())
+      .filter(Boolean)
     for (const email of emails) {
       if (!validateEmail(email)) {
         setError(`Invalid email address: ${email}`)
@@ -70,13 +98,43 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
       }
     }
 
+    // Backend validation: Max 100 recipients
+    if (emails.length > VALIDATION.MAX_RECIPIENTS) {
+      setError(`Cannot send to more than ${VALIDATION.MAX_RECIPIENTS} recipients at once`)
+      return false
+    }
+
+    // Permission check for bulk email (admin/staff only)
+    if (emails.length > 1 && !isBulkAllowed) {
+      setError('Bulk email requires admin or staff role. You can only send to one recipient.')
+      return false
+    }
+
+    // Backend validation: Subject length (3-200 characters)
     if (!subject.trim()) {
       setError('Please enter email subject')
       return false
     }
+    if (subject.trim().length < VALIDATION.SUBJECT_MIN) {
+      setError(`Subject must be at least ${VALIDATION.SUBJECT_MIN} characters`)
+      return false
+    }
+    if (subject.trim().length > VALIDATION.SUBJECT_MAX) {
+      setError(`Subject must not exceed ${VALIDATION.SUBJECT_MAX} characters`)
+      return false
+    }
 
+    // Backend validation: Message length (10-5000 characters)
     if (!message.trim()) {
       setError('Please enter email message')
+      return false
+    }
+    if (message.trim().length < VALIDATION.MESSAGE_MIN) {
+      setError(`Message must be at least ${VALIDATION.MESSAGE_MIN} characters`)
+      return false
+    }
+    if (message.trim().length > VALIDATION.MESSAGE_MAX) {
+      setError(`Message must not exceed ${VALIDATION.MESSAGE_MAX} characters`)
       return false
     }
 
@@ -181,6 +239,27 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
 
             {/* Form Content */}
             <div className="p-8 space-y-6 max-h-[calc(100vh-300px)] overflow-y-auto">
+              {/* Permission Warning for Bulk Email */}
+              <AnimatePresence>
+                {hasPermissionIssue && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl"
+                  >
+                    <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-amber-900">Permission Required</p>
+                      <p className="text-xs text-amber-700 mt-1">
+                        Bulk email requires admin or staff role. You can only send to one recipient
+                        at a time.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Error Message */}
               <AnimatePresence>
                 {error && (
@@ -241,7 +320,12 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
                   placeholder="Enter email subject"
                   className="h-12 rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                   disabled={isSending}
+                  maxLength={VALIDATION.SUBJECT_MAX}
                 />
+                <p className="text-xs text-gray-500">
+                  {subject.length}/{VALIDATION.SUBJECT_MAX} characters (min {VALIDATION.SUBJECT_MIN}
+                  )
+                </p>
               </motion.div>
 
               {/* Message Field */}
@@ -262,7 +346,12 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
                   rows={8}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                   disabled={isSending}
+                  maxLength={VALIDATION.MESSAGE_MAX}
                 />
+                <p className="text-xs text-gray-500">
+                  {message.length}/{VALIDATION.MESSAGE_MAX} characters (min {VALIDATION.MESSAGE_MIN}
+                  )
+                </p>
               </motion.div>
 
               {/* Attachments */}
@@ -334,8 +423,9 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
               </Button>
               <Button
                 onClick={handleSend}
-                disabled={isSending}
-                className="px-6 h-11 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                disabled={isSending || hasPermissionIssue}
+                className="px-6 h-11 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={hasPermissionIssue ? 'You do not have permission to send bulk emails' : ''}
               >
                 {isSending ? (
                   <>
@@ -345,7 +435,7 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
                 ) : (
                   <>
                     <Send className="w-4 h-4 mr-2" />
-                    Send Email
+                    Send Email{isMultipleRecipients && isBulkAllowed ? ` (${recipientCount})` : ''}
                   </>
                 )}
               </Button>

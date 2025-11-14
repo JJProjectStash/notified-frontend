@@ -58,13 +58,25 @@ export async function sendEmail(emailData: EmailData): Promise<boolean> {
   } catch (error: any) {
     console.error('[EmailService] Failed to send email:', error)
 
-    // Provide helpful error messages
+    // Provide helpful error messages synced with backend
     if (error.response?.status === 404) {
       throw new Error(
         'Email service not configured on backend. Please contact your administrator to set up email endpoints.'
       )
     } else if (error.response?.status === 401) {
       throw new Error('Unauthorized - Please login again')
+    } else if (error.response?.status === 403) {
+      // Permission error - bulk email requires admin/staff role
+      throw new Error(
+        error.response.data?.message ||
+          'You do not have permission to perform this action. Bulk email requires admin or staff role.'
+      )
+    } else if (error.response?.status === 429) {
+      // Rate limit exceeded
+      throw new Error(
+        error.response.data?.message ||
+          'Rate limit exceeded. Please wait 45 seconds before sending more emails.'
+      )
     } else if (error.response?.status === 400) {
       throw new Error(error.response.data?.message || 'Invalid email data')
     } else if (error.response?.status === 500) {
@@ -108,7 +120,15 @@ export async function sendGuardianEmail(
 
     if (error.response?.status === 404) {
       throw new Error('Email service not available - Backend endpoints not configured')
+    } else if (error.response?.status === 403) {
+      throw new Error(error.response.data?.message || 'Permission denied')
+    } else if (error.response?.status === 429) {
+      throw new Error(
+        error.response.data?.message ||
+          'Rate limit exceeded. Please wait before sending more emails.'
+      )
     }
+
     throw new Error(error.response?.data?.message || 'Failed to send guardian email')
   }
 }
