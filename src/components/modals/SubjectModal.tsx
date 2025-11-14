@@ -128,31 +128,52 @@ export default function SubjectModal({
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl"
+              transition={{ type: 'spring', duration: 0.5 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl"
             >
               {/* Header */}
-              <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-6 rounded-t-2xl">
+              <div className="bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-700 text-white p-6 rounded-t-3xl shadow-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <BookOpen className="w-6 h-6" />
-                    <h2 className="text-2xl font-bold">
-                      {subject ? 'Edit Subject' : 'Add New Subject'}
-                    </h2>
+                    <motion.div
+                      initial={{ rotate: -180, scale: 0 }}
+                      animate={{ rotate: 0, scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 200 }}
+                      className="bg-white/20 p-2 rounded-xl backdrop-blur-sm"
+                    >
+                      <BookOpen className="w-6 h-6" />
+                    </motion.div>
+                    <div>
+                      <h2 className="text-2xl font-bold">
+                        {subject ? 'Edit Subject' : 'Add New Subject'}
+                      </h2>
+                      <p className="text-purple-100 text-sm mt-1">
+                        {subject
+                          ? 'Update subject information'
+                          : 'Fill in the subject details below'}
+                      </p>
+                    </div>
                   </div>
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
                     onClick={handleClose}
-                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                    className="p-2 hover:bg-white/20 rounded-xl transition-colors"
                   >
                     <X className="w-6 h-6" />
-                  </button>
+                  </motion.button>
                 </div>
               </div>
 
               {/* Form */}
-              <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              <form onSubmit={handleSubmit} className="p-8 space-y-6">
                 {/* Subject Code */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <Hash className="w-4 h-4 inline mr-1" />
                     Subject Code *
                   </label>
@@ -162,12 +183,22 @@ export default function SubjectModal({
                     onChange={(e) => handleChange('subjectCode', e.target.value.toUpperCase())}
                     placeholder="e.g., CS101, MATH201"
                     disabled={!!subject}
-                    className={errors.subjectCode ? 'border-red-500' : ''}
+                    className={`h-12 rounded-xl border-2 transition-all ${
+                      errors.subjectCode
+                        ? 'border-red-500 focus:border-red-600'
+                        : 'border-gray-200 focus:border-purple-500'
+                    }`}
                   />
                   {errors.subjectCode && (
-                    <p className="text-red-500 text-sm mt-1">{errors.subjectCode}</p>
+                    <motion.p
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-red-500 text-sm mt-2 flex items-center gap-1"
+                    >
+                      ⚠️ {errors.subjectCode}
+                    </motion.p>
                   )}
-                </div>
+                </motion.div>
 
                 {/* Subject Name */}
                 <div>

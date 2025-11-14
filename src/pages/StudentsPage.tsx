@@ -1,6 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Users, Plus, Search, Mail, Edit2, Trash2, FileSpreadsheet, Download } from 'lucide-react'
+import {
+  Users,
+  Plus,
+  Search,
+  Mail,
+  Edit2,
+  Trash2,
+  FileSpreadsheet,
+  Download,
+  Upload,
+} from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import MainLayout from '@/layouts/MainLayout'
 import { Button } from '@/components/ui/button'
@@ -9,6 +19,7 @@ import { useToast } from '@/store/toastStore'
 import { studentService } from '@/services/student.service'
 import { Student, StudentFormData } from '@/types'
 import StudentModal from '@/components/modals/StudentModal'
+import { parseExcelFile, generateStudentTemplate, exportStudentsToExcel } from '@/utils/excelUtils'
 
 export default function StudentsPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -16,6 +27,8 @@ export default function StudentsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [generatedNumber, setGeneratedNumber] = useState('')
+  const [isImporting, setIsImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { addToast } = useToast()
   const queryClient = useQueryClient()
 
@@ -153,6 +166,93 @@ export default function StudentsPage() {
     setGeneratedNumber('')
   }
 
+  const handleDownloadTemplate = () => {
+    try {
+      generateStudentTemplate()
+      addToast('Template downloaded successfully', 'success', '✅ Success')
+    } catch (error) {
+      addToast('Failed to download template', 'error', '❌ Error')
+    }
+  }
+
+  const handleExportStudents = () => {
+    try {
+      if (students.length === 0) {
+        addToast('No students to export', 'info', 'ℹ️ Info')
+        return
+      }
+      exportStudentsToExcel(students)
+      addToast(`Exported ${students.length} students successfully`, 'success', '✅ Success')
+    } catch (error) {
+      addToast('Failed to export students', 'error', '❌ Error')
+    }
+  }
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.name.match(/\.(xlsx|xls)$/)) {
+      addToast('Please select a valid Excel file (.xlsx or .xls)', 'error', '❌ Invalid File')
+      return
+    }
+
+    setIsImporting(true)
+    addToast('Importing students from Excel...', 'info', '📥 Importing')
+
+    try {
+      const studentsData = await parseExcelFile(file)
+
+      if (studentsData.length === 0) {
+        addToast('No valid student data found in the file', 'error', '❌ Error')
+        setIsImporting(false)
+        return
+      }
+
+      // Import students one by one
+      let successCount = 0
+      let failCount = 0
+
+      for (const studentData of studentsData) {
+        try {
+          await studentService.create(studentData)
+          successCount++
+        } catch (error) {
+          failCount++
+          console.error('Failed to import student:', studentData.studentNumber, error)
+        }
+      }
+
+      // Refresh the student list
+      queryClient.invalidateQueries({ queryKey: ['students'] })
+      queryClient.refetchQueries({ queryKey: ['students'] })
+
+      // Show results
+      if (successCount > 0) {
+        addToast(
+          `Successfully imported ${successCount} student${successCount > 1 ? 's' : ''}${failCount > 0 ? `, ${failCount} failed` : ''}`,
+          failCount > 0 ? 'info' : 'success',
+          failCount > 0 ? '⚠️ Partial Success' : '✅ Success'
+        )
+      } else {
+        addToast('Failed to import any students', 'error', '❌ Import Failed')
+      }
+    } catch (error: any) {
+      addToast(error.message || 'Failed to import students', 'error', '❌ Error')
+    } finally {
+      setIsImporting(false)
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
   return (
     <MainLayout>
       <div className="p-6 space-y-6">
@@ -169,7 +269,7 @@ export default function StudentsPage() {
             <Button
               variant="outline"
               className="shadow-neumorphic"
-              onClick={() => addToast('Download template feature coming soon!', 'info')}
+              onClick={handleDownloadTemplate}
             >
               <Download className="w-4 h-4 mr-2" />
               Template
@@ -177,11 +277,28 @@ export default function StudentsPage() {
             <Button
               variant="outline"
               className="shadow-neumorphic"
-              onClick={() => addToast('Import feature coming soon!', 'info')}
+              onClick={handleExportStudents}
+              disabled={students.length === 0}
             >
               <FileSpreadsheet className="w-4 h-4 mr-2" />
-              Import
+              Export
             </Button>
+            <Button
+              variant="outline"
+              className="shadow-neumorphic"
+              onClick={handleImportClick}
+              disabled={isImporting}
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              {isImporting ? 'Importing...' : 'Import'}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileChange}
+              className="hidden"
+            />
             <Button
               className="shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
               onClick={handleAddStudent}
@@ -301,23 +418,25 @@ export default function StudentsPage() {
               <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                 <tr>
                   <th className="text-left p-4">
-                    <input
-                      type="checkbox"
-                      checked={
-                        selectedStudents.size === filteredStudents.length &&
-                        filteredStudents.length > 0
-                      }
-                      onChange={toggleSelectAll}
-                      className="rounded border-gray-300"
-                    />
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={
+                          selectedStudents.size === filteredStudents.length &&
+                          filteredStudents.length > 0
+                        }
+                        onChange={toggleSelectAll}
+                        className="w-5 h-5 rounded-md border-2 border-white/30 text-blue-600 focus:ring-2 focus:ring-white/50 focus:ring-offset-0 cursor-pointer transition-all hover:scale-110"
+                      />
+                    </div>
                   </th>
-                  <th className="text-left p-4">Student Number</th>
-                  <th className="text-left p-4">First Name</th>
-                  <th className="text-left p-4">Last Name</th>
-                  <th className="text-left p-4">Email</th>
-                  <th className="text-left p-4">Section</th>
-                  <th className="text-left p-4">Guardian</th>
-                  <th className="text-center p-4">Actions</th>
+                  <th className="text-left p-4 font-semibold">Student Number</th>
+                  <th className="text-left p-4 font-semibold">First Name</th>
+                  <th className="text-left p-4 font-semibold">Last Name</th>
+                  <th className="text-left p-4 font-semibold">Email</th>
+                  <th className="text-left p-4 font-semibold">Section</th>
+                  <th className="text-left p-4 font-semibold">Guardian</th>
+                  <th className="text-center p-4 font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -345,12 +464,14 @@ export default function StudentsPage() {
                       className="border-b border-gray-100 hover:bg-blue-50 transition-colors"
                     >
                       <td className="p-4">
-                        <input
-                          type="checkbox"
-                          checked={selectedStudents.has(student.id)}
-                          onChange={() => toggleSelection(student.id)}
-                          className="rounded border-gray-300"
-                        />
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedStudents.has(student.id)}
+                            onChange={() => toggleSelection(student.id)}
+                            className="w-5 h-5 rounded-md border-2 border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer transition-all hover:scale-110 hover:border-blue-400"
+                          />
+                        </div>
                       </td>
                       <td className="p-4 font-medium text-gray-900">{student.studentNumber}</td>
                       <td className="p-4 text-gray-700">{student.firstName}</td>
