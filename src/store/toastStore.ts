@@ -19,28 +19,23 @@ export const useToastStore = create<ToastState>((set) => ({
   toasts: [],
   addToast: (toast) => {
     const id = Math.random().toString(36).substring(7)
-    console.log('🍞 Adding toast:', { id, ...toast })
     set((state) => {
       const newToasts = [...state.toasts, { ...toast, id }]
-      console.log('📊 Current toasts:', newToasts.length)
       return { toasts: newToasts }
     })
     // Auto-remove after 5 seconds
     setTimeout(() => {
-      console.log('🗑️ Removing toast:', id)
       set((state) => ({
         toasts: state.toasts.filter((t) => t.id !== id),
       }))
     }, 5000)
   },
   removeToast: (id) => {
-    console.log('❌ Manually removing toast:', id)
     set((state) => ({
       toasts: state.toasts.filter((t) => t.id !== id),
     }))
   },
   clearToasts: () => {
-    console.log('🧹 Clearing all toasts')
     set({ toasts: [] })
   },
 }))

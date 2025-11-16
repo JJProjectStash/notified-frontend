@@ -4,16 +4,15 @@ import { useToastStore } from '@/store/toastStore'
 import { cn } from '@/lib/utils'
 
 const toastVariants = {
-  success: 'bg-green-50 border-green-200 text-green-900',
-  error: 'bg-red-50 border-red-200 text-red-900',
-  warning: 'bg-yellow-50 border-yellow-200 text-yellow-900',
-  info: 'bg-blue-50 border-blue-200 text-blue-900',
+  // Dark mode friendly toasts
+  success: 'bg-emerald-900/80 border-emerald-700 text-emerald-200',
+  error: 'bg-rose-900/80 border-rose-700 text-rose-200',
+  warning: 'bg-amber-900/80 border-amber-700 text-amber-200',
+  info: 'bg-sky-900/80 border-sky-700 text-sky-200',
 }
 
 export function ToastContainer() {
   const { toasts, removeToast } = useToastStore()
-
-  console.log('🎨 ToastContainer rendering, toasts:', toasts.length, toasts)
 
   return (
     <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-md">

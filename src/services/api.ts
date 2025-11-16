@@ -16,17 +16,9 @@ const apiClient: AxiosInstance = axios.create({
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('token')
-    console.log('🔑 Request interceptor - token check:', {
-      url: config.url,
-      hasToken: !!token,
-      tokenPreview: token ? token.substring(0, 20) + '...' : 'none',
-      authHeader: config.headers?.Authorization,
-    })
+    // Add Authorization header if token exists. Keep logs minimal to avoid console spam.
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
-      console.log('✅ Added Authorization header')
-    } else {
-      console.warn('⚠️ No token found in localStorage!')
     }
     return config
   },
@@ -38,31 +30,23 @@ apiClient.interceptors.request.use(
 // Response interceptor for error handling and data extraction
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
-    console.log('API Response:', {
-      url: response.config.url,
-      status: response.status,
-      data: response.data,
-    })
-
-    // Special handling for /emails/history - keep full response for pagination
+    // For paginated email history, return full response
     if (response.config.url?.includes('/emails/history')) {
-      console.log('Email history response - preserving full structure')
       return response
     }
 
-    // If backend wraps data in { success, data, message } format, extract it
+    // If backend uses { success, data, message } pattern, extract nested data for callers
     if (response.data && typeof response.data === 'object' && 'data' in response.data) {
-      console.log('Extracting nested data from response')
       return { ...response, data: response.data.data }
     }
 
     return response
   },
   (error: AxiosError) => {
+    // Keep error logs (important) but avoid logging large payloads
     console.error('API Error:', {
       url: error.config?.url,
       status: error.response?.status,
-      data: error.response?.data,
       message: error.message,
     })
 
@@ -78,7 +62,7 @@ apiClient.interceptors.response.use(
 
       // Handle unauthorized access
       if (error.response.status === 401) {
-        console.warn('401 Unauthorized - clearing auth and redirecting to login')
+        // Clear auth state and redirect to login
         localStorage.removeItem('token')
         localStorage.removeItem('user')
         window.location.href = '/login'

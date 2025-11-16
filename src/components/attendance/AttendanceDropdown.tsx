@@ -48,28 +48,34 @@ export const AttendanceDropdown = ({
   const handleMark = async (timeSlot: TimeSlot, status: AttendanceStatus) => {
     setIsLoading(true)
     try {
-      // Mark attendance
-      await enhancedAttendanceService.markAttendance({
+      // Build payload defensively to satisfy backend validation
+      const payload: any = {
         studentId: student.id,
-        subjectId,
         status,
         timeSlot,
         timestamp: new Date().toISOString(),
-      })
+        notes:
+          status === 'late'
+            ? 'Arrived late'
+            : status === 'excused'
+            ? 'Excused absence'
+            : `${timeSlot} marked on time`,
+      }
 
-      // Generate and show message
+      if (typeof subjectId === 'number') payload.subjectId = subjectId
+
+      // Mark attendance
+      await enhancedAttendanceService.markAttendance(payload)
+
+      // Generate message and show success
       const studentName = `${student.firstName} ${student.lastName}`
       const message = generateAttendanceMessage(timeSlot, studentName, student.studentNumber, {
         status: status.charAt(0).toUpperCase() + status.slice(1),
       })
 
-      // Show success toast with message
-      toast.success(
-        `${timeSlot === 'arrival' ? 'Arrival' : 'Departure'} marked successfully!`,
-        'Attendance Recorded'
-      )
+      toast.success(`${timeSlot === 'arrival' ? 'Arrival' : 'Departure'} marked successfully!`, 'Attendance Recorded')
 
-      // Display the predefined message
+      // Show the predefined notification message (informational)
       setTimeout(() => {
         toast.info(message, `${timeSlot === 'arrival' ? 'Arrival' : 'Departure'} Notification`)
       }, 500)
@@ -84,18 +90,33 @@ export const AttendanceDropdown = ({
           })
           toast.success('Guardian notified via email', 'Email Sent')
         } catch (emailError) {
-          console.error('[AttendanceDropdown] Email notification failed:', emailError)
-          // Don't fail the whole operation if email fails
+          // Don't spam console; surface a user-level warning instead
           toast.warning('Attendance marked, but email notification failed', 'Partial Success')
         }
       }
 
       onSuccess?.(timeSlot, status)
       setIsOpen(false)
-    } catch (error) {
-      console.error('[AttendanceDropdown] Failed to mark attendance:', error)
-      toast.error('Failed to mark attendance. Please try again.', 'Error')
-      onError?.(error as Error)
+    } catch (err) {
+      // Try to surface validation messages from backend (422)
+      const errorAny = err as any
+      if (errorAny?.status === 422 || errorAny?.response?.status === 422) {
+        const errors = errorAny?.response?.data?.errors || errorAny?.errors
+        const messages = Array.isArray(errors)
+          ? errors.flat().slice(0, 5)
+          : typeof errors === 'object'
+          ? Object.values(errors).flat().slice(0, 5)
+          : []
+        if (messages.length > 0) {
+          toast.error(messages.join('; '), 'Validation failed')
+        } else {
+          toast.error(errorAny?.response?.data?.message || 'Validation failed', 'Error')
+        }
+      } else {
+        toast.error('Failed to mark attendance. Please try again.', 'Error')
+      }
+
+      onError?.(err as Error)
     } finally {
       setIsLoading(false)
     }

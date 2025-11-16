@@ -55,9 +55,8 @@ export default function AttendancePage() {
   } = useQuery({
     queryKey: ['students'],
     queryFn: async () => {
-      console.log('[Attendance] Fetching students...')
+      // Fetch students for attendance listing
       const data = await studentService.getAll()
-      console.log('[Attendance] Loaded students:', data.length)
       return data
     },
   })
