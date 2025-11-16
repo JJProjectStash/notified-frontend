@@ -1,26 +1,18 @@
 /**
  * AttendanceDropdown Component
- * 
+ *
  * Reusable dropdown for marking student arrival/departure with:
  * - Quick action selection (Arrival/Departure)
  * - Status selection (Present/Late/Excused)
  * - Automatic message generation
  * - Guardian notification option
- * 
+ *
  * Integration: Drop into any page needing attendance marking
  */
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  CheckCircle,
-  DoorOpen,
-  Clock,
-  AlertCircle,
-  Mail,
-  ChevronDown,
-  Loader2,
-} from 'lucide-react'
+import { CheckCircle, DoorOpen, Clock, AlertCircle, Mail, ChevronDown, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/store/toastStore'
 import { AttendanceStatus, TimeSlot, Student } from '@/types'
@@ -161,9 +153,7 @@ export const AttendanceDropdown = ({
           <>
             <CheckCircle className="w-4 h-4" />
             Mark Attendance
-            <ChevronDown
-              className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-            />
+            <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </>
         )}
       </Button>
@@ -247,9 +237,7 @@ export const AttendanceDropdown = ({
       </AnimatePresence>
 
       {/* Backdrop */}
-      {isOpen && (
-        <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-      )}
+      {isOpen && <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />}
     </div>
   )
 }

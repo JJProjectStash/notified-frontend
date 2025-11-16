@@ -1,13 +1,13 @@
 /**
  * AttendanceSummary Component
- * 
+ *
  * Displays comprehensive attendance statistics with:
  * - Daily summary cards
  * - Student-wise attendance breakdown
  * - Date range filtering
  * - Visual progress indicators
  * - Export to Excel functionality
- * 
+ *
  * Integration: Use in dashboard or dedicated attendance page
  */
 
@@ -299,7 +299,9 @@ export const AttendanceSummary = ({
                     >
                       <td className="px-6 py-3">
                         <div>
-                          <p className="text-sm font-medium text-slate-200">{student.studentName}</p>
+                          <p className="text-sm font-medium text-slate-200">
+                            {student.studentName}
+                          </p>
                           <p className="text-xs text-slate-500">{student.studentNumber}</p>
                         </div>
                       </td>

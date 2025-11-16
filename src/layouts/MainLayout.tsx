@@ -49,6 +49,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
       color: '#10B981',
     },
     {
+      label: 'Attendance',
+      icon: CheckCircle,
+      path: ROUTES.ATTENDANCE,
+      color: '#8B5CF6',
+    },
+    {
       label: 'Email History',
       icon: Mail,
       path: ROUTES.EMAIL_HISTORY,

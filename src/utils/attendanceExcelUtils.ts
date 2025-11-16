@@ -1,12 +1,12 @@
 /**
  * Attendance Excel Import/Export Utilities
- * 
+ *
  * Handles Excel file operations for attendance records:
  * - Import attendance from Excel files
  * - Export attendance to Excel with formatting
  * - Generate Excel templates for bulk import
  * - Validate Excel data before import
- * 
+ *
  * Integration: Works with existing excelUtils.ts for students
  */
 
@@ -21,14 +21,14 @@ export interface ExcelAttendanceRecord {
   'Student Number': string
   'First Name': string
   'Last Name': string
-  'Email': string
+  Email: string
   'Subject Code'?: string
   'Subject Name'?: string
-  'Status': string // present, absent, late, excused
+  Status: string // present, absent, late, excused
   'Time Slot': string // arrival, departure
-  'Date': string // YYYY-MM-DD
-  'Time': string // HH:MM AM/PM
-  'Notes'?: string
+  Date: string // YYYY-MM-DD
+  Time: string // HH:MM AM/PM
+  Notes?: string
 }
 
 /**
@@ -42,10 +42,10 @@ export interface ValidationResult {
 
 /**
  * Parse Excel file and extract attendance data
- * 
+ *
  * Expected Excel format:
  * - Student Number | First Name | Last Name | Email | Status | Time Slot | Date | Time | Notes
- * 
+ *
  * @param file - Excel file to parse
  * @returns Promise resolving to array of parsed attendance data
  */
@@ -79,19 +79,17 @@ export const parseAttendanceExcel = (file: File): Promise<ExcelAttendanceRecord[
 
 /**
  * Validate attendance Excel data before import
- * 
+ *
  * Checks for:
  * - Required fields (Student Number, Status, Time Slot, Date)
  * - Valid status values
  * - Valid time slot values
  * - Valid date format
- * 
+ *
  * @param records - Array of Excel attendance records
  * @returns Validation result with errors and warnings
  */
-export const validateAttendanceData = (
-  records: ExcelAttendanceRecord[]
-): ValidationResult => {
+export const validateAttendanceData = (records: ExcelAttendanceRecord[]): ValidationResult => {
   const errors: string[] = []
   const warnings: string[] = []
 
@@ -163,10 +161,10 @@ export const validateAttendanceData = (
 
 /**
  * Transform Excel data to AttendanceFormData format
- * 
+ *
  * Note: Student ID lookup must be done separately via API
  * This function prepares the data structure
- * 
+ *
  * @param records - Array of Excel attendance records
  * @returns Array of attendance form data (without student IDs)
  */
@@ -208,32 +206,29 @@ export const transformExcelToAttendanceData = (
 
 /**
  * Export attendance records to Excel file
- * 
+ *
  * Creates a formatted Excel file with:
  * - Headers with styling
  * - Auto-sized columns
  * - Date/time formatting
  * - Status color coding (via conditional formatting)
- * 
+ *
  * @param records - Array of attendance records to export
  * @param filename - Output filename (defaults to attendance_export_YYYY-MM-DD.xlsx)
  */
-export const exportAttendanceToExcel = (
-  records: AttendanceRecord[],
-  filename?: string
-): void => {
+export const exportAttendanceToExcel = (records: AttendanceRecord[], filename?: string): void => {
   const exportData = records.map((record) => ({
     'Student Number': record.studentNumber,
     'First Name': record.firstName,
     'Last Name': record.lastName,
-    'Email': record.email,
+    Email: record.email,
     'Subject Code': record.subjectCode || '',
     'Subject Name': record.subjectName || '',
-    'Status': record.status.charAt(0).toUpperCase() + record.status.slice(1),
+    Status: record.status.charAt(0).toUpperCase() + record.status.slice(1),
     'Time Slot': record.timeSlot.charAt(0).toUpperCase() + record.timeSlot.slice(1),
-    'Date': format(new Date(record.timestamp), 'yyyy-MM-DD'),
-    'Time': format(new Date(record.timestamp), 'hh:mm a'),
-    'Notes': record.notes || '',
+    Date: format(new Date(record.timestamp), 'yyyy-MM-DD'),
+    Time: format(new Date(record.timestamp), 'hh:mm a'),
+    Notes: record.notes || '',
     'Created At': format(new Date(record.createdAt), 'yyyy-MM-dd HH:mm:ss'),
   }))
 
@@ -265,12 +260,12 @@ export const exportAttendanceToExcel = (
 
 /**
  * Generate Excel template for bulk attendance import
- * 
+ *
  * Creates a sample Excel file with:
  * - Column headers
  * - Example data rows
  * - Instructions sheet
- * 
+ *
  * @param includeInstructions - Whether to include an instructions sheet
  */
 export const generateAttendanceTemplate = (includeInstructions: boolean = true): void => {
@@ -283,40 +278,40 @@ export const generateAttendanceTemplate = (includeInstructions: boolean = true):
       'Student Number': '24-0001',
       'First Name': 'John',
       'Last Name': 'Doe',
-      'Email': 'john.doe@example.com',
+      Email: 'john.doe@example.com',
       'Subject Code': 'CS101',
       'Subject Name': 'Computer Science 101',
-      'Status': 'present',
+      Status: 'present',
       'Time Slot': 'arrival',
-      'Date': today,
-      'Time': '08:00 AM',
-      'Notes': 'On time',
+      Date: today,
+      Time: '08:00 AM',
+      Notes: 'On time',
     },
     {
       'Student Number': '24-0002',
       'First Name': 'Alice',
       'Last Name': 'Smith',
-      'Email': 'alice.smith@example.com',
+      Email: 'alice.smith@example.com',
       'Subject Code': 'CS101',
       'Subject Name': 'Computer Science 101',
-      'Status': 'late',
+      Status: 'late',
       'Time Slot': 'arrival',
-      'Date': today,
-      'Time': '08:15 AM',
-      'Notes': '15 minutes late',
+      Date: today,
+      Time: '08:15 AM',
+      Notes: '15 minutes late',
     },
     {
       'Student Number': '24-0003',
       'First Name': 'Bob',
       'Last Name': 'Johnson',
-      'Email': 'bob.johnson@example.com',
+      Email: 'bob.johnson@example.com',
       'Subject Code': 'CS101',
       'Subject Name': 'Computer Science 101',
-      'Status': 'present',
+      Status: 'present',
       'Time Slot': 'departure',
-      'Date': today,
-      'Time': '05:00 PM',
-      'Notes': '',
+      Date: today,
+      Time: '05:00 PM',
+      Notes: '',
     },
   ]
 
@@ -386,12 +381,12 @@ export const generateAttendanceTemplate = (includeInstructions: boolean = true):
 
 /**
  * Download attendance summary as Excel report
- * 
+ *
  * Creates a comprehensive Excel report with multiple sheets:
  * - Daily summary
  * - Student-wise summary
  * - Subject-wise summary (if applicable)
- * 
+ *
  * @param dailySummary - Daily attendance summary data
  * @param studentSummaries - Student-wise summaries
  * @param reportDate - Date for the report (defaults to today)
@@ -429,10 +424,10 @@ export const exportAttendanceSummaryReport = (
       'Student Number': s.studentNumber,
       'Student Name': s.studentName,
       'Total Days': s.totalDays,
-      'Present': s.presentDays,
-      'Absent': s.absentDays,
-      'Late': s.lateDays,
-      'Excused': s.excusedDays,
+      Present: s.presentDays,
+      Absent: s.absentDays,
+      Late: s.lateDays,
+      Excused: s.excusedDays,
       'Attendance Rate': `${s.attendanceRate}%`,
       'Last Attendance': s.lastAttendance
         ? format(new Date(s.lastAttendance), 'yyyy-MM-dd')

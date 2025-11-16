@@ -1,6 +1,6 @@
 /**
  * AttendancePage - Complete Attendance Management
- * 
+ *
  * Full-featured attendance management page with:
  * ✅ Excel import/export
  * ✅ Attendance summary dashboard
@@ -8,7 +8,7 @@
  * ✅ Bulk actions
  * ✅ Predefined message templates
  * ✅ Guardian notifications
- * 
+ *
  * Integration: Add to your routes and navigation
  */
 
@@ -48,7 +48,11 @@ export default function AttendancePage() {
   const toast = useToast()
 
   // Fetch students
-  const { data: students = [], isLoading, refetch } = useQuery({
+  const {
+    data: students = [],
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ['students'],
     queryFn: async () => {
       console.log('[Attendance] Fetching students...')
@@ -80,33 +84,27 @@ export default function AttendancePage() {
     try {
       // Parse Excel file
       const excelData = await parseAttendanceExcel(file)
-      
+
       // Validate data
       const validation = validateAttendanceData(excelData)
-      
+
       if (!validation.isValid) {
-        toast.error(
-          `Invalid data: ${validation.errors.join(', ')}`,
-          'Import Failed'
-        )
+        toast.error(`Invalid data: ${validation.errors.join(', ')}`, 'Import Failed')
         return
       }
 
       if (validation.warnings.length > 0) {
-        toast.warning(
-          `Warnings: ${validation.warnings.slice(0, 3).join(', ')}`,
-          'Import Warnings'
-        )
+        toast.warning(`Warnings: ${validation.warnings.slice(0, 3).join(', ')}`, 'Import Warnings')
       }
 
       // Import via API
       const result = await enhancedAttendanceService.importFromExcel(file)
-      
+
       toast.success(
         `Successfully imported ${result.success} records. ${result.failed} failed.`,
         'Import Complete'
       )
-      
+
       if (result.errors.length > 0) {
         console.log('[Attendance] Import errors:', result.errors)
       }
@@ -294,7 +292,9 @@ export default function AttendancePage() {
                       <div className="flex flex-col items-center gap-2">
                         <Users className="w-16 h-16 text-slate-600" />
                         <p className="font-medium text-lg">
-                          {searchTerm ? 'No students found matching your search' : 'No students yet'}
+                          {searchTerm
+                            ? 'No students found matching your search'
+                            : 'No students yet'}
                         </p>
                         <p className="text-sm text-slate-500">
                           {searchTerm ? 'Try adjusting your search' : 'Add students to get started'}

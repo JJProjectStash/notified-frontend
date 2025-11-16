@@ -1,13 +1,13 @@
 /**
  * Enhanced Attendance Service
- * 
+ *
  * Provides comprehensive attendance management features including:
  * - Bulk attendance marking
  * - Attendance summaries and analytics
  * - Excel import/export
  * - Time-based filtering (arrival/departure)
  * - Student and subject-level reporting
- * 
+ *
  * Integration Points:
  * - Uses existing api.ts client for HTTP requests
  * - Compatible with existing record.service.ts
@@ -44,10 +44,7 @@ export const enhancedAttendanceService = {
    * @returns Array of created attendance records
    */
   async markBulkAttendance(data: BulkAttendanceData): Promise<AttendanceRecord[]> {
-    const response = await api.post<ApiResponse<AttendanceRecord[]>>(
-      '/attendance/bulk-mark',
-      data
-    )
+    const response = await api.post<ApiResponse<AttendanceRecord[]>>('/attendance/bulk-mark', data)
     return response.data.data
   },
 

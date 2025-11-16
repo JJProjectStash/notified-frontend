@@ -1,15 +1,15 @@
 /**
  * Message Templates Utility
- * 
+ *
  * Provides predefined message templates for arrival/departure notifications
  * with dynamic variable substitution.
- * 
+ *
  * Features:
  * - Predefined templates for common scenarios
  * - Dynamic variable replacement
  * - Custom template support
  * - Email and SMS formatting
- * 
+ *
  * Integration: Use with notification.service.ts and email.service.ts
  */
 
@@ -133,9 +133,9 @@ export const getTemplateById = (templateId: string): MessageTemplate | undefined
 
 /**
  * Replace template variables with actual values
- * 
+ *
  * Replaces {{variableName}} placeholders with provided values
- * 
+ *
  * @param template - Message template string
  * @param variables - Object with variable values
  * @returns Message with variables replaced
@@ -158,7 +158,7 @@ export const fillTemplate = (template: string, variables: Partial<MessageVariabl
 
 /**
  * Generate arrival message from template
- * 
+ *
  * @param templateId - Template ID to use (defaults to 'arrival-default')
  * @param studentName - Student's full name
  * @param studentNumber - Student number
@@ -177,7 +177,7 @@ export const generateArrivalMessage = (
   }
 ): string => {
   const template = getTemplateById(templateId) || ARRIVAL_TEMPLATES[0]
-  
+
   const now = new Date()
   const variables: MessageVariables = {
     studentName,
@@ -193,7 +193,7 @@ export const generateArrivalMessage = (
 
 /**
  * Generate departure message from template
- * 
+ *
  * @param templateId - Template ID to use (defaults to 'departure-default')
  * @param studentName - Student's full name
  * @param studentNumber - Student number
@@ -212,7 +212,7 @@ export const generateDepartureMessage = (
   }
 ): string => {
   const template = getTemplateById(templateId) || DEPARTURE_TEMPLATES[0]
-  
+
   const now = new Date()
   const variables: MessageVariables = {
     studentName,
@@ -228,9 +228,9 @@ export const generateDepartureMessage = (
 
 /**
  * Generate message based on time slot
- * 
+ *
  * Convenience function that automatically selects arrival or departure template
- * 
+ *
  * @param timeSlot - 'arrival' or 'departure'
  * @param studentName - Student's full name
  * @param studentNumber - Student number
@@ -268,7 +268,7 @@ export const generateAttendanceMessage = (
 
 /**
  * Create custom message template
- * 
+ *
  * @param type - 'arrival' or 'departure'
  * @param title - Template title
  * @param message - Message template with {{variable}} placeholders
@@ -294,9 +294,9 @@ export const createCustomTemplate = (
 
 /**
  * Preview message with sample data
- * 
+ *
  * Useful for showing users what the message will look like
- * 
+ *
  * @param templateId - Template ID
  * @returns Filled template with sample data
  */
