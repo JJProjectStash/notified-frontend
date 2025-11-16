@@ -30,6 +30,5 @@ if (rootElement) {
   // If root element is not found, log an error so devs can debug quickly
   // This avoids using the non-null assertion operator which can sometimes
   // trip up certain parsers in tooling environments.
-  // eslint-disable-next-line no-console
   console.error('Root element not found: #root')
 }

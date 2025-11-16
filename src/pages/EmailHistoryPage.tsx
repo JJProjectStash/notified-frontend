@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import {
   Mail,
@@ -59,49 +59,57 @@ export default function EmailHistoryPage() {
   const [filterType, setFilterType] = useState<'all' | 'single' | 'bulk'>('all')
   const { addToast } = useToast()
 
-  const fetchEmailHistory = async (page = 1) => {
-    setIsLoading(true)
-    try {
-      console.log('[EmailHistory] Fetching email history, page:', page)
+  const fetchEmailHistory = useCallback(
+    async (page = 1) => {
+      setIsLoading(true)
+      try {
+        console.log('[EmailHistory] Fetching email history, page:', page)
 
-      const response = await api.get('/emails/history', {
-        params: {
-          page,
-          limit: 20,
-          search: searchTerm || undefined,
-        },
-      })
+        const response = await api.get('/emails/history', {
+          params: {
+            page,
+            limit: 20,
+            search: searchTerm || undefined,
+          },
+        })
 
-      // Response structure: { success, data: records[], pagination: {...} }
-      const emailData = response.data?.data || []
-      const paginationData = response.data?.pagination
+        // Response structure: { success, data: records[], pagination: {...} }
+        const emailData = response.data?.data || []
+        const paginationData = response.data?.pagination
 
-      console.log('[EmailHistory] Loaded emails:', emailData.length, 'pagination:', paginationData)
-      setEmails(emailData)
-      setPagination(
-        paginationData || {
-          page,
-          limit: 20,
-          total: emailData.length,
-          totalPages: 1,
+        console.log(
+          '[EmailHistory] Loaded emails:',
+          emailData.length,
+          'pagination:',
+          paginationData
+        )
+        setEmails(emailData)
+        setPagination(
+          paginationData || {
+            page,
+            limit: 20,
+            total: emailData.length,
+            totalPages: 1,
+          }
+        )
+      } catch (error: any) {
+        console.error('[EmailHistory] Failed to fetch email history:', error)
+
+        if (error.response?.status === 404) {
+          addToast('Email history endpoint not available', 'error')
+        } else {
+          addToast(error.response?.data?.message || 'Failed to load email history', 'error')
         }
-      )
-    } catch (error: any) {
-      console.error('[EmailHistory] Failed to fetch email history:', error)
-
-      if (error.response?.status === 404) {
-        addToast('Email history endpoint not available', 'error')
-      } else {
-        addToast(error.response?.data?.message || 'Failed to load email history', 'error')
+      } finally {
+        setIsLoading(false)
       }
-    } finally {
-      setIsLoading(false)
-    }
-  }
+    },
+    [searchTerm, addToast]
+  )
 
   useEffect(() => {
     fetchEmailHistory(1)
-  }, [searchTerm])
+  }, [fetchEmailHistory])
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {

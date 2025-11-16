@@ -106,6 +106,7 @@ export function useThrottledCallback<T extends (...args: unknown[]) => unknown>(
  * @returns Memoized value
  */
 export function useMemoized<T>(factory: () => T, deps: React.DependencyList): T {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   return useMemo(factory, deps)
 }
 
