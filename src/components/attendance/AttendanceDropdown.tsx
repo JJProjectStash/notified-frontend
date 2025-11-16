@@ -57,8 +57,8 @@ export const AttendanceDropdown = ({
           status === 'late'
             ? 'Arrived late'
             : status === 'excused'
-            ? 'Excused absence'
-            : `${timeSlot} marked on time`,
+              ? 'Excused absence'
+              : `${timeSlot} marked on time`,
         // Optional: keep timeSlot for frontend purposes; backend will ignore unknown fields
         timeSlot,
       }
