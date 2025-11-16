@@ -13,6 +13,7 @@ const StudentsPage = lazy(() => import('@/pages/StudentsPage'))
 const SubjectsPage = lazy(() => import('@/pages/SubjectsPage'))
 const RecordsPage = lazy(() => import('@/pages/RecordsPage'))
 const EmailHistoryPage = lazy(() => import('@/pages/EmailHistoryPage'))
+const AttendancePage = lazy(() => import('@/pages/AttendancePage'))
 
 /**
  * Loading component shown while routes are being lazy loaded
@@ -80,6 +81,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <EmailHistoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path={ROUTES.ATTENDANCE}
+            element={
+              <ProtectedRoute>
+                <AttendancePage />
               </ProtectedRoute>
             }
           />
