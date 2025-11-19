@@ -164,7 +164,7 @@ export default function LandingPage() {
           <p className="font-medium">
             © 2025 {APP_NAME}. Built with React, TypeScript, and TailwindCSS.
           </p>
-          <p className="text-sm text-slate-500 mt-2">Enterprise Edition</p>
+          <p className="text-sm text-slate-500 mt-2">Team Arpanet</p>
         </div>
       </footer>
     </div>
