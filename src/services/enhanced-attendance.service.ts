@@ -139,7 +139,7 @@ export const enhancedAttendanceService = {
    * @returns Subject attendance summary
    */
   async getSubjectSummary(
-    subjectId: number,
+    subjectId: string | number,
     startDate?: string,
     endDate?: string
   ): Promise<SubjectAttendanceSummary> {

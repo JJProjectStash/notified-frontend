@@ -22,7 +22,7 @@ export interface AttendanceRecord {
   firstName: string
   lastName: string
   email: string
-  subjectId?: number
+  subjectId?: string | number
   subjectCode?: string
   subjectName?: string
   status: AttendanceStatus
@@ -38,7 +38,7 @@ export interface AttendanceRecord {
  */
 export interface AttendanceFormData {
   studentId: number
-  subjectId?: number
+  subjectId?: string | number
   status: AttendanceStatus
   timeSlot: TimeSlot
   timestamp?: string
@@ -50,7 +50,7 @@ export interface AttendanceFormData {
  */
 export interface BulkAttendanceData {
   studentIds: number[]
-  subjectId?: number
+  subjectId?: string | number
   status: AttendanceStatus
   timeSlot: TimeSlot
   timestamp?: string
@@ -92,7 +92,7 @@ export interface StudentAttendanceSummary {
  * Subject attendance summary
  */
 export interface SubjectAttendanceSummary {
-  subjectId: number
+  subjectId: string | number
   subjectCode: string
   subjectName: string
   section: string
@@ -117,7 +117,7 @@ export interface AttendanceFilters {
   status?: AttendanceStatus
   timeSlot?: TimeSlot
   studentId?: number
-  subjectId?: number
+  subjectId?: string | number
   dateRange?: AttendanceDateRange
   searchTerm?: string
 }

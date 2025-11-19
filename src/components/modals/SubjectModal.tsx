@@ -8,7 +8,7 @@ import { Subject, SubjectFormData } from '@/types'
 interface SubjectModalProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (data: SubjectFormData) => void
+  onSubmit: (data: SubjectFormData, id?: string | number) => void
   subject?: Subject | null
   isLoading?: boolean
 }
@@ -87,7 +87,10 @@ export default function SubjectModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (validateForm()) {
-      onSubmit(formData)
+      // Send the subject id if we're editing an existing subject.
+      // This avoids relying on the parent's `editingSubject` closure
+      // and ensures we always pass the correct id when updating.
+      onSubmit(formData, subject?.id)
     }
   }
 

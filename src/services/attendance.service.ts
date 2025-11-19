@@ -3,7 +3,7 @@ import apiClient from './api'
 interface Attendance {
   id: number
   studentId: number
-  subjectId: number
+  subjectId: string | number
   date: string
   status: 'present' | 'absent' | 'late' | 'excused'
   notes?: string
@@ -13,7 +13,7 @@ interface Attendance {
 
 interface AttendanceFormData {
   studentId: number
-  subjectId: number
+  subjectId: string | number
   date: string
   status: 'present' | 'absent' | 'late' | 'excused'
   notes?: string
@@ -54,7 +54,7 @@ export const attendanceService = {
     return response.data
   },
 
-  async getBySubject(subjectId: number): Promise<Attendance[]> {
+  async getBySubject(subjectId: string | number): Promise<Attendance[]> {
     const response = await apiClient.get<Attendance[]>(`/attendance/subject/${subjectId}`)
     return response.data
   },

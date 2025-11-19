@@ -89,7 +89,7 @@ export interface StudentFormData {
  * Subject entity with all database fields
  */
 export interface Subject {
-  readonly id: number
+  readonly id: string | number
   subjectCode: string // Format: e.g., "CS101", "MATH201"
   subjectName: string
   section: string

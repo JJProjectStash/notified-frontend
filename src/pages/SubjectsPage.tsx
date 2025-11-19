@@ -53,7 +53,7 @@ export default function SubjectsPage() {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<SubjectFormData> }) =>
+    mutationFn: ({ id, data }: { id: string | number; data: Partial<SubjectFormData> }) =>
       subjectService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subjects'] })
@@ -68,7 +68,7 @@ export default function SubjectsPage() {
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: subjectService.delete,
+    mutationFn: (id: string | number) => subjectService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subjects'] })
       addToast('Subject deleted successfully', 'success')
@@ -107,16 +107,32 @@ export default function SubjectsPage() {
   }
 
   const handleEditSubject = (subject: Subject) => {
+    if (!subject?.id) {
+      console.warn('[Subjects] Received subject with no id', subject)
+      addToast('Invalid subject selected for editing', 'error')
+      return
+    }
     setEditingSubject(subject)
     setIsModalOpen(true)
   }
 
-  const handleModalSubmit = (data: SubjectFormData) => {
-    if (editingSubject) {
-      updateMutation.mutate({ id: editingSubject.id, data })
-    } else {
-      createMutation.mutate(data)
+  const handleModalSubmit = (data: SubjectFormData, id?: string | number) => {
+    // Prefer the explicit id (passed from the modal) when available.
+    const subjectId = id ?? editingSubject?.id
+
+    if (subjectId) {
+      updateMutation.mutate({ id: subjectId, data })
+      return
     }
+
+    // If there's no id, this is a create operation. Log a warning if editingSubject
+    // was set but somehow doesn't have an id.
+    if (editingSubject && !subjectId) {
+      console.warn('[Subjects] Editing subject has no id, falling back to create')
+      addToast('Editing subject missing id — creating new subject instead', 'warning')
+    }
+
+    createMutation.mutate(data)
   }
 
   const handleModalClose = () => {

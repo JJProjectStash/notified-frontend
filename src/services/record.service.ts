@@ -27,7 +27,7 @@ export const recordService = {
     return response.data
   },
 
-  async getBySubject(subjectId: number): Promise<Record[]> {
+  async getBySubject(subjectId: string | number): Promise<Record[]> {
     const response = await apiClient.get<Record[]>(`/records/subject/${subjectId}`)
     return response.data
   },
