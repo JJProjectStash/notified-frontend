@@ -16,7 +16,7 @@ export type TimeSlot = 'arrival' | 'departure'
  * Attendance record with student information
  */
 export interface AttendanceRecord {
-  readonly id: number
+  readonly id: string | number
   studentId: number
   studentNumber: string
   firstName: string

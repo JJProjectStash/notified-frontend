@@ -16,8 +16,9 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle, DoorOpen, Clock, AlertCircle, Mail, ChevronDown, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import EditAttendanceModal from '@/components/attendance/EditAttendanceModal'
 import { useToast } from '@/store/toastStore'
-import { AttendanceStatus, TimeSlot, Student } from '@/types'
+import { AttendanceStatus, TimeSlot, Student, AttendanceRecord } from '@/types'
 import { enhancedAttendanceService } from '@/services/enhanced-attendance.service'
 import { generateAttendanceMessage } from '@/utils/messageTemplates'
 import emailService from '@/services/email.service'
@@ -40,6 +41,8 @@ export const AttendanceDropdown = ({
   className = '',
 }: AttendanceDropdownProps) => {
   const [isOpen, setIsOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [existingRecord, setExistingRecord] = useState<AttendanceRecord | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [sendNotification, setSendNotification] = useState(true)
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
@@ -80,6 +83,24 @@ export const AttendanceDropdown = ({
       setDropdownPosition({ top, left })
     }
   }, [isOpen])
+
+  // Fetch existing attendance for today when opening dropdown
+  useEffect(() => {
+    if (!isOpen) return
+    ;(async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0]
+        const records = await enhancedAttendanceService.getAttendanceRecords({
+          studentId: student.id as any,
+          subjectId,
+          dateRange: { startDate: today, endDate: today },
+        })
+        setExistingRecord(records.length > 0 ? records[0] : null)
+      } catch (err) {
+        console.error('[AttendanceDropdown] Failed fetching existing record', err)
+      }
+    })()
+  }, [isOpen, student.id, subjectId])
 
   /**
    * Handle attendance marking
@@ -142,6 +163,22 @@ export const AttendanceDropdown = ({
       setIsOpen(false)
     } catch (err) {
       const errorAny = err as any
+      // If attendance is already marked, fetch the existing record and open editor
+      if (errorAny?.response?.status === 409 || errorAny?.status === 409) {
+        try {
+          const today = new Date().toISOString().split('T')[0]
+          const records = await enhancedAttendanceService.getAttendanceRecords({
+            studentId: student.id as any,
+            subjectId,
+            dateRange: { startDate: today, endDate: today },
+          })
+          setExistingRecord(records.length > 0 ? records[0] : null)
+          setIsEditOpen(true)
+        } catch (er) {
+          console.error('[AttendanceDropdown] Failed to fetch existing record after conflict', er)
+        }
+        return
+      }
       if (errorAny?.status === 422 || errorAny?.response?.status === 422) {
         const errors = errorAny?.response?.data?.errors || errorAny?.errors
         const messages = Array.isArray(errors)
@@ -346,6 +383,24 @@ export const AttendanceDropdown = ({
                     </motion.button>
                   )
                 })}
+                {/* If already marked today, show a small row to view/edit */}
+                {existingRecord && (
+                  <div className="p-3 mt-2 rounded-lg bg-slate-900/50 border border-slate-700 text-slate-300 text-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">Already marked: {existingRecord.status}</div>
+                        <div className="text-xs text-slate-500">
+                          ID: {String(existingRecord.id).slice(0, 8)}
+                        </div>
+                      </div>
+                      <div>
+                        <Button size="sm" variant="outline" onClick={() => setIsEditOpen(true)}>
+                          Edit
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Notification Option */}
@@ -381,6 +436,16 @@ export const AttendanceDropdown = ({
           document.body
         )}
 
+      {/* Edit attendance modal (controlled by isEditOpen) */}
+      <EditAttendanceModal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        record={existingRecord as AttendanceRecord}
+        onUpdated={(rec) => {
+          // Refresh parent with updated record info
+          onSuccess?.(rec.timeSlot, rec.status)
+        }}
+      />
       {/* Backdrop */}
       {isOpen && (
         <div

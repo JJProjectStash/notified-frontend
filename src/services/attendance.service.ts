@@ -64,7 +64,7 @@ export const attendanceService = {
     return response.data
   },
 
-  async update(id: number, data: Partial<AttendanceFormData>): Promise<Attendance> {
+  async update(id: number | string, data: Partial<AttendanceFormData>): Promise<Attendance> {
     const response = await apiClient.put<Attendance>(`/attendance/${id}`, data)
     return response.data
   },
