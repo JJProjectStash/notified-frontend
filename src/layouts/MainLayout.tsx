@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Home,
@@ -28,8 +28,19 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const toast = useToast()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [isMobileMenuOpen])
+
   const handleLogout = () => {
-    // logging out
     clearAuth()
     toast.success(TOAST_MESSAGES.LOGOUT_SUCCESS, 'Goodbye')
     setTimeout(() => navigate(ROUTES.LOGIN), 500)
@@ -99,7 +110,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </div>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-all"
+          className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
           aria-label="Toggle menu"
         >
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -150,7 +161,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 key={item.path}
                 onClick={() => handleNavigation(item.path)}
                 className={cn(
-                  'sidebar-nav-item w-full group',
+                  'sidebar-nav-item w-full group min-h-[44px]',
                   isActive
                     ? 'bg-slate-800/80 text-white shadow-lg'
                     : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
@@ -195,7 +206,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
           </div>
           <Button
             variant="outline"
-            className="w-full border-slate-700 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-all duration-200"
+            className="w-full border-slate-700 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-all duration-200 min-h-[44px]"
             onClick={handleLogout}
           >
             <LogOut className="w-4 h-4 mr-2" />

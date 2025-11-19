@@ -6,15 +6,24 @@ import MainLayout from '@/layouts/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 import { useToast } from '@/store/toastStore'
 import { subjectService } from '@/services/subject.service'
 import { Subject, SubjectFormData } from '@/types'
 import SubjectModal from '@/components/modals/SubjectModal'
+import { useDebounce } from '@/hooks/useDebounce'
 
 export default function SubjectsPage() {
   const [searchTerm, setSearchTerm] = useState('')
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null)
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean
+    subject: Subject | null
+  }>({ isOpen: false, subject: null })
   const { addToast } = useToast()
   const queryClient = useQueryClient()
 
@@ -69,21 +78,21 @@ export default function SubjectsPage() {
     },
   })
 
-  // Filter subjects based on search
+  // Filter subjects based on debounced search
   const filteredSubjects = subjects.filter(
     (subject) =>
-      subject.subjectCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      subject.subjectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      subject.section.toLowerCase().includes(searchTerm.toLowerCase())
+      subject.subjectCode.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      subject.subjectName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      subject.section.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
   )
 
   const handleDelete = (subject: Subject) => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete ${subject.subjectCode} - ${subject.subjectName}?`
-      )
-    ) {
-      deleteMutation.mutate(subject.id)
+    setDeleteConfirmation({ isOpen: true, subject })
+  }
+
+  const confirmDelete = () => {
+    if (deleteConfirmation.subject) {
+      deleteMutation.mutate(deleteConfirmation.subject.id)
     }
   }
 
@@ -172,6 +181,13 @@ export default function SubjectsPage() {
               className="pl-12 h-12 border-slate-600 bg-slate-900/50 text-slate-100 placeholder:text-slate-500 focus:border-purple-500 focus:ring-purple-500/20"
             />
           </div>
+          {searchTerm && (
+            <p className="mt-3 text-sm text-slate-400">
+              {filteredSubjects.length === 0
+                ? 'No results found'
+                : `Found ${filteredSubjects.length} subject${filteredSubjects.length !== 1 ? 's' : ''}`}
+            </p>
+          )}
         </div>
 
         {/* Subjects Table */}
@@ -206,28 +222,27 @@ export default function SubjectsPage() {
               </thead>
               <tbody className="bg-slate-900/50">
                 {isLoading ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-16 text-slate-400">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="w-12 h-12 border-4 border-purple-900 border-t-purple-500 rounded-full animate-spin" />
-                        <p className="font-medium">Loading subjects...</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableSkeleton rows={5} columns={6} />
                 ) : filteredSubjects.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-16 text-slate-400">
-                      <div className="flex flex-col items-center gap-2">
-                        <BookOpen className="w-16 h-16 text-slate-600" />
-                        <p className="font-medium text-lg">
-                          {searchTerm
-                            ? 'No subjects found matching your search'
-                            : 'No subjects added yet'}
-                        </p>
-                        <p className="text-sm text-slate-500">
-                          {!searchTerm && 'Get started by adding your first subject'}
-                        </p>
-                      </div>
+                    <td colSpan={6} className="p-0">
+                      <EmptyState
+                        icon={BookOpen}
+                        title={searchTerm ? 'No subjects found' : 'No subjects yet'}
+                        description={
+                          searchTerm
+                            ? 'Try adjusting your search terms or filters'
+                            : 'Get started by adding your first subject to the system'
+                        }
+                        action={
+                          !searchTerm
+                            ? {
+                                label: 'Add Subject',
+                                onClick: handleAddSubject,
+                              }
+                            : undefined
+                        }
+                      />
                     </td>
                   </tr>
                 ) : (
@@ -267,14 +282,16 @@ export default function SubjectsPage() {
                           </button>
                           <button
                             onClick={() => handleEditSubject(subject)}
-                            className="p-2.5 text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-emerald-500/30"
+                            disabled={updateMutation.isPending}
+                            className="p-2.5 text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Edit"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDelete(subject)}
-                            className="p-2.5 text-red-400 hover:bg-red-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-red-500/30"
+                            disabled={deleteMutation.isPending}
+                            className="p-2.5 text-red-400 hover:bg-red-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -297,6 +314,19 @@ export default function SubjectsPage() {
         onSubmit={handleModalSubmit}
         subject={editingSubject}
         isLoading={createMutation.isPending || updateMutation.isPending}
+      />
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={deleteConfirmation.isOpen}
+        onClose={() => setDeleteConfirmation({ isOpen: false, subject: null })}
+        onConfirm={confirmDelete}
+        title="Delete Subject"
+        description={`Are you sure you want to delete ${deleteConfirmation.subject?.subjectCode} - ${deleteConfirmation.subject?.subjectName}? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteMutation.isPending}
       />
     </MainLayout>
   )

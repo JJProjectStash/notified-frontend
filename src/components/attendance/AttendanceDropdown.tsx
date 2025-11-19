@@ -251,7 +251,7 @@ export const AttendanceDropdown = ({
         ) : (
           <>
             <CheckCircle className="w-4 h-4" />
-            Mark Attendance
+            Mark
             <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </>
         )}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Users,
@@ -11,10 +11,6 @@ import {
   Download,
   Upload,
   CheckCircle,
-  XCircle,
-  AlertTriangle,
-  Info,
-  BookOpen,
   FileText,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -22,6 +18,9 @@ import MainLayout from '@/layouts/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 import { useToast } from '@/store/toastStore'
 import { studentService } from '@/services/student.service'
 import { Student, StudentFormData } from '@/types'
@@ -29,15 +28,22 @@ import StudentModal from '@/components/modals/StudentModal'
 import EmailModal, { EmailData } from '@/components/modals/EmailModal'
 import { parseExcelFile, generateStudentTemplate, exportStudentsToExcel } from '@/utils/excelUtils'
 import { sendEmail } from '@/services/email.service'
+import { useDebounce } from '@/hooks/useDebounce'
+import { useRef } from 'react'
 
 export default function StudentsPage() {
   const [searchTerm, setSearchTerm] = useState('')
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
   const [selectedStudents, setSelectedStudents] = useState<Set<number>>(new Set())
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [generatedNumber, setGeneratedNumber] = useState('')
   const [isImporting, setIsImporting] = useState(false)
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean
+    student: Student | null
+  }>({ isOpen: false, student: null })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { addToast } = useToast()
   const queryClient = useQueryClient()
@@ -54,7 +60,7 @@ export default function StudentsPage() {
   })
 
   // Generate student number when opening modal
-  useEffect(() => {
+  useState(() => {
     if (isModalOpen && !editingStudent) {
       studentService
         .generateStudentNumber()
@@ -67,7 +73,7 @@ export default function StudentsPage() {
           addToast('Failed to generate student number', 'error')
         })
     }
-  }, [isModalOpen, editingStudent, addToast])
+  })
 
   // Create mutation
   const createMutation = useMutation({
@@ -102,7 +108,6 @@ export default function StudentsPage() {
   const deleteMutation = useMutation({
     mutationFn: studentService.delete,
     onSuccess: () => {
-      // Force refetch to ensure we get the latest data from the server
       queryClient.invalidateQueries({ queryKey: ['students'] })
       queryClient.refetchQueries({ queryKey: ['students'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
@@ -115,13 +120,13 @@ export default function StudentsPage() {
     },
   })
 
-  // Filter students based on search
+  // Filter students based on debounced search
   const filteredStudents = students.filter(
     (student) =>
-      student.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.studentNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchTerm.toLowerCase())
+      student.firstName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      student.lastName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      student.studentNumber.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      student.email.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
   )
 
   // Toggle selection
@@ -145,10 +150,12 @@ export default function StudentsPage() {
   }
 
   const handleDelete = (student: Student) => {
-    if (
-      window.confirm(`Are you sure you want to delete ${student.firstName} ${student.lastName}?`)
-    ) {
-      deleteMutation.mutate(student.id)
+    setDeleteConfirmation({ isOpen: true, student })
+  }
+
+  const confirmDelete = () => {
+    if (deleteConfirmation.student) {
+      deleteMutation.mutate(deleteConfirmation.student.id)
     }
   }
 
@@ -180,7 +187,6 @@ export default function StudentsPage() {
     try {
       const success = await sendEmail(emailData)
       if (success) {
-        // Clear selection after successful send
         setSelectedStudents(new Set())
       }
       return success
@@ -191,7 +197,6 @@ export default function StudentsPage() {
     }
   }
 
-  // Get email addresses for selected students
   const getSelectedEmails = (): string[] => {
     return filteredStudents
       .filter((student) => selectedStudents.has(student.id))
@@ -228,7 +233,6 @@ export default function StudentsPage() {
     const file = event.target.files?.[0]
     if (!file) return
 
-    // Validate file type
     if (!file.name.match(/\.(xlsx|xls)$/)) {
       addToast('Please select a valid Excel file (.xlsx or .xls)', 'error')
       return
@@ -246,7 +250,6 @@ export default function StudentsPage() {
         return
       }
 
-      // Import students one by one
       let successCount = 0
       let failCount = 0
 
@@ -260,11 +263,9 @@ export default function StudentsPage() {
         }
       }
 
-      // Refresh the student list
       queryClient.invalidateQueries({ queryKey: ['students'] })
       queryClient.refetchQueries({ queryKey: ['students'] })
 
-      // Show results
       if (successCount > 0) {
         addToast(
           `Successfully imported ${successCount} student${successCount > 1 ? 's' : ''}${failCount > 0 ? `, ${failCount} failed` : ''}`,
@@ -277,7 +278,6 @@ export default function StudentsPage() {
       addToast(error.message || 'Failed to import students', 'error')
     } finally {
       setIsImporting(false)
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -339,7 +339,7 @@ export default function StudentsPage() {
           ]}
         />
 
-        {/* Toolbar - Enterprise Grade */}
+        {/* Toolbar */}
         <div className="bg-slate-800/50 rounded-2xl p-6 shadow-enterprise border border-slate-700/50 backdrop-blur-sm">
           <div className="flex flex-wrap items-center gap-3">
             <Button
@@ -387,6 +387,13 @@ export default function StudentsPage() {
               className="pl-12 h-12 border-slate-600 bg-slate-900/50 text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20"
             />
           </div>
+          {searchTerm && (
+            <p className="mt-3 text-sm text-slate-400">
+              {filteredStudents.length === 0
+                ? 'No results found'
+                : `Found ${filteredStudents.length} student${filteredStudents.length !== 1 ? 's' : ''}`}
+            </p>
+          )}
         </div>
 
         {/* Students Table */}
@@ -437,28 +444,27 @@ export default function StudentsPage() {
               </thead>
               <tbody className="bg-slate-900/50">
                 {isLoading ? (
-                  <tr>
-                    <td colSpan={8} className="text-center py-16 text-slate-400">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="w-12 h-12 border-4 border-blue-900 border-t-blue-500 rounded-full animate-spin" />
-                        <p className="font-medium">Loading students...</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableSkeleton rows={5} columns={8} />
                 ) : filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-16 text-slate-400">
-                      <div className="flex flex-col items-center gap-2">
-                        <Users className="w-16 h-16 text-slate-600" />
-                        <p className="font-medium text-lg">
-                          {searchTerm
-                            ? 'No students found matching your search'
-                            : 'No students added yet'}
-                        </p>
-                        <p className="text-sm text-slate-500">
-                          {!searchTerm && 'Get started by adding your first student'}
-                        </p>
-                      </div>
+                    <td colSpan={8} className="p-0">
+                      <EmptyState
+                        icon={Users}
+                        title={searchTerm ? 'No students found' : 'No students yet'}
+                        description={
+                          searchTerm
+                            ? 'Try adjusting your search terms or filters'
+                            : 'Get started by adding your first student to the system'
+                        }
+                        action={
+                          !searchTerm
+                            ? {
+                                label: 'Add Student',
+                                onClick: handleAddStudent,
+                              }
+                            : undefined
+                        }
+                      />
                     </td>
                   </tr>
                 ) : (
@@ -500,14 +506,16 @@ export default function StudentsPage() {
                         <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => handleEditStudent(student)}
-                            className="p-2.5 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-blue-500/30"
+                            disabled={updateMutation.isPending}
+                            className="p-2.5 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Edit"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDelete(student)}
-                            className="p-2.5 text-red-400 hover:bg-red-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-red-500/30"
+                            disabled={deleteMutation.isPending}
+                            className="p-2.5 text-red-400 hover:bg-red-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -522,7 +530,7 @@ export default function StudentsPage() {
           </div>
         </motion.div>
 
-        {/* Floating Email Button - Enterprise Style */}
+        {/* Floating Email Button */}
         {selectedStudents.size > 0 && (
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
@@ -531,17 +539,12 @@ export default function StudentsPage() {
             className="fixed bottom-8 right-8 z-50"
           >
             <button onClick={() => setIsEmailModalOpen(true)} className="relative group">
-              {/* Glow effect */}
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full blur-xl opacity-60 group-hover:opacity-80 transition-opacity animate-pulse" />
-
-              {/* Button */}
               <div className="relative flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full shadow-enterprise-2xl hover:shadow-enterprise-2xl hover:scale-105 transition-all duration-300">
                 <Mail className="w-5 h-5 text-white" />
                 <span className="font-semibold text-white">
                   Email Selected ({selectedStudents.size})
                 </span>
-
-                {/* Badge */}
                 <div className="absolute -top-2 -right-2 w-7 h-7 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg border-2 border-slate-900 animate-bounce">
                   {selectedStudents.size}
                 </div>
@@ -567,6 +570,19 @@ export default function StudentsPage() {
         onClose={() => setIsEmailModalOpen(false)}
         recipients={getSelectedEmails()}
         onSend={handleEmailSend}
+      />
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={deleteConfirmation.isOpen}
+        onClose={() => setDeleteConfirmation({ isOpen: false, student: null })}
+        onConfirm={confirmDelete}
+        title="Delete Student"
+        description={`Are you sure you want to delete ${deleteConfirmation.student?.firstName} ${deleteConfirmation.student?.lastName}? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteMutation.isPending}
       />
     </MainLayout>
   )

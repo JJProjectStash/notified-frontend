@@ -75,14 +75,13 @@
     --sidebar-accent: 221 83% 53%;
     --sidebar-border: 217 19% 20%;
 
-    /* Enterprise Shadows */
-    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
-    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
-    --shadow: 0 2px 4px -1px rgb(0 0 0 / 0.06), 0 4px 6px -1px rgb(0 0 0 / 0.08);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.06);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.06);
-    --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.15);
+    /* Enterprise Shadows - Simplified */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
 
     --radius: 0.75rem;
   }
@@ -137,25 +136,33 @@
     scroll-behavior: smooth;
   }
 
-  /* HIDDEN SCROLLBARS - Enterprise Grade */
-  /* Hide scrollbar for Chrome, Safari and Opera */
+  /* Custom Scrollbars - Enterprise Grade */
   ::-webkit-scrollbar {
-    display: none;
+    width: 10px;
+    height: 10px;
   }
 
-  /* Hide scrollbar for IE, Edge and Firefox */
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-700 rounded-lg;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-600;
+  }
+
+  /* Firefox scrollbar */
   * {
-    -ms-overflow-style: none; /* IE and Edge */
-    scrollbar-width: none; /* Firefox */
+    scrollbar-width: thin;
+    scrollbar-color: hsl(215 28% 30%) hsl(222 47% 11%);
   }
 }
 
 @layer utilities {
-  /* Enterprise Shadow System */
-  .shadow-enterprise-xs {
-    box-shadow: var(--shadow-xs);
-  }
-
+  /* Enterprise Shadow System - Simplified */
   .shadow-enterprise-sm {
     box-shadow: var(--shadow-sm);
   }
@@ -251,5 +258,18 @@
   /* Focus Rings */
   .focus-ring {
     @apply focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-2 transition-shadow;
+  }
+
+  /* Improved text contrast for WCAG compliance */
+  .text-contrast-high {
+    @apply text-slate-50;
+  }
+
+  .text-contrast-medium {
+    @apply text-slate-200;
+  }
+
+  .text-contrast-low {
+    @apply text-slate-400;
   }
 }
