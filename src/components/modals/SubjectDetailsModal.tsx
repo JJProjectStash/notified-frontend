@@ -2,14 +2,15 @@
  * SubjectDetailsModal - Enterprise-grade Subject Management
  *
  * Features:
- * - Subject information display with schedule
+ * - Subject information display with multiple schedules
  * - Student enrollment management with visual transfer
  * - Enroll All functionality
  * - Integrated attendance marking with email notifications
  * - Bulk operations (Mark All with email)
  * - Student list display by default with search
- * - Schedule management (add/edit class schedules)
- * - Multiple schedules per day support
+ * - Schedule management (add/edit multiple class schedules per day)
+ * - Fixed checkbox selection issues
+ * - Select All button for attendance marking
  */
 
 import { useState, useEffect, useMemo } from 'react'
@@ -32,6 +33,8 @@ import {
   Building2,
   Save,
   Loader2,
+  Trash2,
+  Edit,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
@@ -40,7 +43,7 @@ import { Label } from '@/components/ui/label'
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 import { useToast } from '@/store/toastStore'
 import { Subject, Student, AttendanceRecord } from '@/types'
-import { SubjectEnhanced, EnrolledStudent, SubjectSchedule } from '@/types/subject.types'
+import { SubjectEnhanced, EnrolledStudent, SubjectScheduleSlot } from '@/types/subject.types'
 import { subjectEnrollmentService } from '@/services/subject-enrollment.service'
 import { subjectAttendanceService } from '@/services/subject-attendance.service'
 import { studentService } from '@/services/student.service'
@@ -64,7 +67,7 @@ const DAYS_OF_WEEK = [
   'Sunday',
 ] as const
 
-type Day = SubjectSchedule['days'][number]
+type Day = SubjectScheduleSlot['days'][number]
 
 export default function SubjectDetailsModal({
   isOpen,
@@ -79,17 +82,24 @@ export default function SubjectDetailsModal({
   const [markAllConfirm, setMarkAllConfirm] = useState<{
     isOpen: boolean
     status: 'present' | 'absent' | 'late' | 'excused' | null
-  }>({ isOpen: false, status: null })
+    scheduleSlot: string | null
+  }>({ isOpen: false, status: null, scheduleSlot: null })
 
-  // Schedule form state
-  const [scheduleForm, setScheduleForm] = useState<SubjectSchedule>({
+  // Schedule management state
+  const [schedules, setSchedules] = useState<SubjectScheduleSlot[]>([])
+  const [isEditingSchedules, setIsEditingSchedules] = useState(false)
+  const [editingScheduleIndex, setEditingScheduleIndex] = useState<number | null>(null)
+  const [scheduleForm, setScheduleForm] = useState<SubjectScheduleSlot>({
+    slotName: '',
     days: [],
     startTime: '',
     endTime: '',
     room: '',
     building: '',
   })
-  const [isEditingSchedule, setIsEditingSchedule] = useState(false)
+
+  // Selected schedule slot for attendance
+  const [selectedScheduleSlot, setSelectedScheduleSlot] = useState<string | null>(null)
 
   const { addToast } = useToast()
   const queryClient = useQueryClient()
@@ -101,27 +111,39 @@ export default function SubjectDetailsModal({
       setSearchTerm('')
       setSelectedStudents(new Set())
       setSelectedDate(new Date().toISOString().split('T')[0])
-      setIsEditingSchedule(false)
+      setIsEditingSchedules(false)
+      setEditingScheduleIndex(null)
+      setSelectedScheduleSlot(null)
 
-      // Load existing schedule
-      const existingSchedule = (subject as any).schedule
-      if (existingSchedule) {
-        setScheduleForm({
-          days: existingSchedule.days || [],
-          startTime: existingSchedule.startTime || '',
-          endTime: existingSchedule.endTime || '',
-          room: existingSchedule.room || '',
-          building: existingSchedule.building || '',
-        })
+      // Load existing schedules
+      const subjectEnhanced = subject as any
+      if (subjectEnhanced.schedules && Array.isArray(subjectEnhanced.schedules)) {
+        setSchedules(subjectEnhanced.schedules)
+      } else if (subjectEnhanced.schedule) {
+        // Convert legacy schedule to new format
+        setSchedules([
+          {
+            slotName: 'Main Class',
+            days: subjectEnhanced.schedule.days || [],
+            startTime: subjectEnhanced.schedule.startTime || '',
+            endTime: subjectEnhanced.schedule.endTime || '',
+            room: subjectEnhanced.schedule.room || '',
+            building: subjectEnhanced.schedule.building || '',
+          },
+        ])
       } else {
-        setScheduleForm({
-          days: [],
-          startTime: '',
-          endTime: '',
-          room: '',
-          building: '',
-        })
+        setSchedules([])
       }
+
+      // Reset schedule form
+      setScheduleForm({
+        slotName: '',
+        days: [],
+        startTime: '',
+        endTime: '',
+        room: '',
+        building: '',
+      })
     }
   }, [isOpen, subject])
 
@@ -143,16 +165,22 @@ export default function SubjectDetailsModal({
     enabled: isOpen && activeTab === 'students',
   })
 
-  // Fetch attendance records for selected date
+  // Fetch attendance records for selected date and schedule slot
   const {
     data: attendanceRecords = [],
     isLoading: loadingAttendance,
     refetch: refetchAttendance,
   } = useQuery({
-    queryKey: ['subjects', subject?.id, 'attendance', selectedDate],
+    queryKey: ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
     queryFn: () => subjectAttendanceService.getSubjectAttendanceByDate(subject!.id, selectedDate),
     enabled: isOpen && !!subject && activeTab === 'attendance',
   })
+
+  // Filter attendance records by schedule slot if selected
+  const filteredAttendanceRecords = useMemo(() => {
+    if (!selectedScheduleSlot) return attendanceRecords
+    return attendanceRecords.filter((record: any) => record.scheduleSlot === selectedScheduleSlot)
+  }, [attendanceRecords, selectedScheduleSlot])
 
   // Enroll student mutation
   const enrollMutation = useMutation({
@@ -203,17 +231,22 @@ export default function SubjectDetailsModal({
 
   // Mark attendance mutation
   const markAttendanceMutation = useMutation({
-    mutationFn: (data: { studentId: number; status: 'present' | 'absent' | 'late' | 'excused' }) =>
+    mutationFn: (data: {
+      studentId: number
+      status: 'present' | 'absent' | 'late' | 'excused'
+      scheduleSlot?: string
+    }) =>
       subjectAttendanceService.markSubjectAttendance({
         subjectId: subject!.id,
         studentId: data.studentId,
         date: selectedDate,
         status: data.status,
         timeSlot: 'arrival',
+        scheduleSlot: data.scheduleSlot,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['subjects', subject?.id, 'attendance', selectedDate],
+        queryKey: ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
       })
       addToast('Attendance marked and notifications sent', 'success')
       refetchAttendance()
@@ -228,6 +261,7 @@ export default function SubjectDetailsModal({
     mutationFn: (data: {
       studentIds: number[]
       status: 'present' | 'absent' | 'late' | 'excused'
+      scheduleSlot?: string
     }) =>
       subjectAttendanceService.bulkMarkSubjectAttendance({
         subjectId: subject!.id,
@@ -235,37 +269,40 @@ export default function SubjectDetailsModal({
         date: selectedDate,
         status: data.status,
         timeSlot: 'arrival',
+        scheduleSlot: data.scheduleSlot,
       }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ['subjects', subject?.id, 'attendance', selectedDate],
+        queryKey: ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
       })
+      const slotInfo = variables.scheduleSlot ? ` for ${variables.scheduleSlot}` : ''
       addToast(
-        `Marked ${variables.studentIds.length} students as ${variables.status}. Email notifications sent to students and guardians.`,
+        `Marked ${variables.studentIds.length} students as ${variables.status}${slotInfo}. Email notifications sent to students and guardians.`,
         'success'
       )
       setSelectedStudents(new Set())
-      setMarkAllConfirm({ isOpen: false, status: null })
+      setMarkAllConfirm({ isOpen: false, status: null, scheduleSlot: null })
       refetchAttendance()
     },
     onError: (error: any) => {
       addToast(error?.message || 'Failed to mark attendance', 'error')
-      setMarkAllConfirm({ isOpen: false, status: null })
+      setMarkAllConfirm({ isOpen: false, status: null, scheduleSlot: null })
     },
   })
 
-  // Update schedule mutation
-  const updateScheduleMutation = useMutation({
-    mutationFn: (schedule: SubjectSchedule | null) =>
-      subjectService.updateSchedule(subject!.id, schedule),
+  // Update schedules mutation
+  const updateSchedulesMutation = useMutation({
+    mutationFn: (schedules: SubjectScheduleSlot[]) =>
+      subjectService.updateSchedules(subject!.id, schedules),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subjects'] })
       queryClient.invalidateQueries({ queryKey: ['subjects', subject?.id] })
-      addToast('Schedule updated successfully', 'success')
-      setIsEditingSchedule(false)
+      addToast('Schedules updated successfully', 'success')
+      setIsEditingSchedules(false)
+      setEditingScheduleIndex(null)
     },
     onError: (error: any) => {
-      addToast(error?.message || 'Failed to update schedule', 'error')
+      addToast(error?.message || 'Failed to update schedules', 'error')
     },
   })
 
@@ -294,11 +331,11 @@ export default function SubjectDetailsModal({
   // Attendance status map
   const attendanceStatusMap = useMemo(() => {
     const map = new Map<number, AttendanceRecord>()
-    attendanceRecords.forEach((record) => {
+    filteredAttendanceRecords.forEach((record: any) => {
       map.set(record.studentId, record)
     })
     return map
-  }, [attendanceRecords])
+  }, [filteredAttendanceRecords])
 
   // Handle mark all with confirmation
   const handleMarkAll = (status: 'present' | 'absent' | 'late' | 'excused') => {
@@ -307,13 +344,17 @@ export default function SubjectDetailsModal({
       addToast('No students to mark', 'warning')
       return
     }
-    setMarkAllConfirm({ isOpen: true, status })
+    setMarkAllConfirm({ isOpen: true, status, scheduleSlot: selectedScheduleSlot })
   }
 
   const confirmMarkAll = () => {
     if (!markAllConfirm.status) return
     const studentIds = filteredEnrolledStudents.map((e) => e.studentId)
-    bulkMarkMutation.mutate({ studentIds, status: markAllConfirm.status })
+    bulkMarkMutation.mutate({
+      studentIds,
+      status: markAllConfirm.status,
+      scheduleSlot: markAllConfirm.scheduleSlot || undefined,
+    })
   }
 
   // Handle enroll all
@@ -343,18 +384,41 @@ export default function SubjectDetailsModal({
     })
   }
 
-  // Select all/none - FIXED
-  const toggleSelectAll = () => {
-    setSelectedStudents((prev) => {
-      if (prev.size === filteredEnrolledStudents.length) {
-        return new Set()
-      } else {
-        return new Set(filteredEnrolledStudents.map((e) => e.studentId))
-      }
-    })
+  // Select all/none - FIXED with dedicated button
+  const handleSelectAll = () => {
+    if (selectedStudents.size === filteredEnrolledStudents.length) {
+      setSelectedStudents(new Set())
+    } else {
+      setSelectedStudents(new Set(filteredEnrolledStudents.map((e) => e.studentId)))
+    }
   }
 
-  // Handle schedule form changes
+  // Schedule management functions
+  const handleAddSchedule = () => {
+    setScheduleForm({
+      slotName: '',
+      days: [],
+      startTime: '',
+      endTime: '',
+      room: '',
+      building: '',
+    })
+    setEditingScheduleIndex(null)
+    setIsEditingSchedules(true)
+  }
+
+  const handleEditSchedule = (index: number) => {
+    setScheduleForm(schedules[index])
+    setEditingScheduleIndex(index)
+    setIsEditingSchedules(true)
+  }
+
+  const handleDeleteSchedule = (index: number) => {
+    const newSchedules = schedules.filter((_, i) => i !== index)
+    setSchedules(newSchedules)
+    updateSchedulesMutation.mutate(newSchedules)
+  }
+
   const handleDayToggle = (day: Day) => {
     setScheduleForm((prev) => ({
       ...prev,
@@ -363,6 +427,10 @@ export default function SubjectDetailsModal({
   }
 
   const handleScheduleSave = () => {
+    if (!scheduleForm.slotName.trim()) {
+      addToast('Please provide a schedule name (e.g., Lecture, Laboratory)', 'warning')
+      return
+    }
     if (scheduleForm.days.length === 0) {
       addToast('Please select at least one day', 'warning')
       return
@@ -375,7 +443,31 @@ export default function SubjectDetailsModal({
       addToast('End time must be after start time', 'warning')
       return
     }
-    updateScheduleMutation.mutate(scheduleForm)
+
+    let newSchedules: SubjectScheduleSlot[]
+    if (editingScheduleIndex !== null) {
+      // Update existing schedule
+      newSchedules = schedules.map((s, i) => (i === editingScheduleIndex ? scheduleForm : s))
+    } else {
+      // Add new schedule
+      newSchedules = [...schedules, scheduleForm]
+    }
+
+    setSchedules(newSchedules)
+    updateSchedulesMutation.mutate(newSchedules)
+  }
+
+  const handleCancelScheduleEdit = () => {
+    setIsEditingSchedules(false)
+    setEditingScheduleIndex(null)
+    setScheduleForm({
+      slotName: '',
+      days: [],
+      startTime: '',
+      endTime: '',
+      room: '',
+      building: '',
+    })
   }
 
   if (!subject) return null
@@ -519,7 +611,10 @@ export default function SubjectDetailsModal({
                           <div className="flex items-center justify-between">
                             <span className="text-slate-400">Today's Attendance</span>
                             <span className="text-2xl font-bold text-emerald-400">
-                              {attendanceRecords.filter((r) => r.status === 'present').length}
+                              {
+                                filteredAttendanceRecords.filter((r: any) => r.status === 'present')
+                                  .length
+                              }
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
@@ -527,8 +622,9 @@ export default function SubjectDetailsModal({
                             <span className="text-2xl font-bold text-purple-400">
                               {enrolledStudents.length > 0
                                 ? Math.round(
-                                    (attendanceRecords.filter((r) => r.status === 'present')
-                                      .length /
+                                    (filteredAttendanceRecords.filter(
+                                      (r: any) => r.status === 'present'
+                                    ).length /
                                       enrolledStudents.length) *
                                       100
                                   )
@@ -715,6 +811,23 @@ export default function SubjectDetailsModal({
                           className="h-12 border-slate-600 bg-slate-900/50 text-slate-100"
                         />
                       </div>
+                      {schedules.length > 0 && (
+                        <div className="flex-1">
+                          <label className="block text-sm text-slate-400 mb-2">Schedule Slot</label>
+                          <select
+                            value={selectedScheduleSlot || ''}
+                            onChange={(e) => setSelectedScheduleSlot(e.target.value || null)}
+                            className="w-full h-12 px-4 border border-slate-600 bg-slate-900/50 text-slate-100 rounded-lg"
+                          >
+                            <option value="">All Slots</option>
+                            {schedules.map((schedule, index) => (
+                              <option key={index} value={schedule.slotName}>
+                                {schedule.slotName} ({schedule.startTime} - {schedule.endTime})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                       <div className="flex-1">
                         <label className="block text-sm text-slate-400 mb-2">Search Students</label>
                         <div className="relative">
@@ -778,23 +891,23 @@ export default function SubjectDetailsModal({
                           <AlertCircle className="w-4 h-4 mr-1" />
                           Excused
                         </Button>
+                        <div className="w-px h-6 bg-slate-600" />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleSelectAll}
+                          disabled={filteredEnrolledStudents.length === 0}
+                          className="border-slate-600"
+                        >
+                          {selectedStudents.size === filteredEnrolledStudents.length &&
+                          selectedStudents.size > 0
+                            ? 'Deselect All'
+                            : 'Select All'}
+                        </Button>
                         {selectedStudents.size > 0 && (
-                          <>
-                            <div className="w-px h-6 bg-slate-600" />
-                            <span className="text-sm text-slate-400">
-                              {selectedStudents.size} selected
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={toggleSelectAll}
-                              className="border-slate-600"
-                            >
-                              {selectedStudents.size === filteredEnrolledStudents.length
-                                ? 'Deselect All'
-                                : 'Select All'}
-                            </Button>
-                          </>
+                          <span className="text-sm text-slate-400">
+                            {selectedStudents.size} selected
+                          </span>
                         )}
                       </div>
                     </div>
@@ -826,7 +939,7 @@ export default function SubjectDetailsModal({
                                       type="checkbox"
                                       checked={selectedStudents.has(student.id)}
                                       onChange={() => toggleStudentSelection(student.id)}
-                                      className="w-5 h-5 rounded border-slate-600 text-purple-600 focus:ring-2 focus:ring-purple-500"
+                                      className="w-5 h-5 rounded border-slate-600 text-purple-600 focus:ring-2 focus:ring-purple-500 cursor-pointer"
                                     />
                                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center text-white font-semibold flex-shrink-0">
                                       {student.firstName[0]}
@@ -864,6 +977,7 @@ export default function SubjectDetailsModal({
                                             markAttendanceMutation.mutate({
                                               studentId: student.id,
                                               status: 'present',
+                                              scheduleSlot: selectedScheduleSlot || undefined,
                                             })
                                           }
                                           disabled={markAttendanceMutation.isPending}
@@ -878,6 +992,7 @@ export default function SubjectDetailsModal({
                                             markAttendanceMutation.mutate({
                                               studentId: student.id,
                                               status: 'absent',
+                                              scheduleSlot: selectedScheduleSlot || undefined,
                                             })
                                           }
                                           disabled={markAttendanceMutation.isPending}
@@ -905,7 +1020,10 @@ export default function SubjectDetailsModal({
                           <span className="text-sm text-emerald-400 font-medium">Present</span>
                         </div>
                         <p className="text-2xl font-bold text-emerald-400">
-                          {attendanceRecords.filter((r) => r.status === 'present').length}
+                          {
+                            filteredAttendanceRecords.filter((r: any) => r.status === 'present')
+                              .length
+                          }
                         </p>
                       </div>
                       <div className="bg-red-500/10 rounded-xl p-4 border border-red-500/30">
@@ -914,7 +1032,10 @@ export default function SubjectDetailsModal({
                           <span className="text-sm text-red-400 font-medium">Absent</span>
                         </div>
                         <p className="text-2xl font-bold text-red-400">
-                          {attendanceRecords.filter((r) => r.status === 'absent').length}
+                          {
+                            filteredAttendanceRecords.filter((r: any) => r.status === 'absent')
+                              .length
+                          }
                         </p>
                       </div>
                       <div className="bg-amber-500/10 rounded-xl p-4 border border-amber-500/30">
@@ -923,7 +1044,7 @@ export default function SubjectDetailsModal({
                           <span className="text-sm text-amber-400 font-medium">Late</span>
                         </div>
                         <p className="text-2xl font-bold text-amber-400">
-                          {attendanceRecords.filter((r) => r.status === 'late').length}
+                          {filteredAttendanceRecords.filter((r: any) => r.status === 'late').length}
                         </p>
                       </div>
                       <div className="bg-purple-500/10 rounded-xl p-4 border border-purple-500/30">
@@ -932,7 +1053,10 @@ export default function SubjectDetailsModal({
                           <span className="text-sm text-purple-400 font-medium">Excused</span>
                         </div>
                         <p className="text-2xl font-bold text-purple-400">
-                          {attendanceRecords.filter((r) => r.status === 'excused').length}
+                          {
+                            filteredAttendanceRecords.filter((r: any) => r.status === 'excused')
+                              .length
+                          }
                         </p>
                       </div>
                     </div>
@@ -950,21 +1074,38 @@ export default function SubjectDetailsModal({
                       <div className="flex items-center justify-between mb-6">
                         <h3 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
                           <Calendar className="w-5 h-5 text-blue-400" />
-                          Class Schedule
+                          Class Schedules
                         </h3>
-                        {!isEditingSchedule && (
+                        {!isEditingSchedules && (
                           <Button
-                            onClick={() => setIsEditingSchedule(true)}
+                            onClick={handleAddSchedule}
                             variant="outline"
                             className="border-blue-500/30 text-blue-400 hover:bg-blue-500/20"
                           >
-                            {(subject as any).schedule ? 'Edit Schedule' : 'Add Schedule'}
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Schedule
                           </Button>
                         )}
                       </div>
 
-                      {isEditingSchedule ? (
+                      {isEditingSchedules ? (
                         <div className="space-y-6">
+                          {/* Schedule Name */}
+                          <div>
+                            <Label className="text-slate-300 mb-2 block">
+                              Schedule Name (e.g., Lecture, Laboratory, Tutorial)
+                            </Label>
+                            <Input
+                              type="text"
+                              placeholder="e.g., Lecture"
+                              value={scheduleForm.slotName}
+                              onChange={(e) =>
+                                setScheduleForm({ ...scheduleForm, slotName: e.target.value })
+                              }
+                              className="h-12 border-slate-600 bg-slate-800 text-slate-100"
+                            />
+                          </div>
+
                           {/* Days Selection */}
                           <div>
                             <Label className="text-slate-300 mb-3 block">Class Days</Label>
@@ -1057,18 +1198,18 @@ export default function SubjectDetailsModal({
                           <div className="flex gap-3 pt-4">
                             <Button
                               onClick={handleScheduleSave}
-                              disabled={updateScheduleMutation.isPending}
+                              disabled={updateSchedulesMutation.isPending}
                               className="bg-blue-600 hover:bg-blue-700 flex-1"
                             >
-                              {updateScheduleMutation.isPending ? (
+                              {updateSchedulesMutation.isPending ? (
                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                               ) : (
                                 <Save className="w-4 h-4 mr-2" />
                               )}
-                              Save Schedule
+                              {editingScheduleIndex !== null ? 'Update Schedule' : 'Save Schedule'}
                             </Button>
                             <Button
-                              onClick={() => setIsEditingSchedule(false)}
+                              onClick={handleCancelScheduleEdit}
                               variant="outline"
                               className="border-slate-600"
                             >
@@ -1076,56 +1217,79 @@ export default function SubjectDetailsModal({
                             </Button>
                           </div>
                         </div>
-                      ) : (subject as any).schedule ? (
+                      ) : schedules.length > 0 ? (
                         <div className="space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/30">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Calendar className="w-4 h-4 text-blue-400" />
-                                <span className="text-sm text-slate-400">Class Days</span>
-                              </div>
-                              <p className="text-slate-200 font-medium">
-                                {(subject as any).schedule.days.join(', ')}
-                              </p>
-                            </div>
-                            <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/30">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Clock className="w-4 h-4 text-blue-400" />
-                                <span className="text-sm text-slate-400">Time</span>
-                              </div>
-                              <p className="text-slate-200 font-medium">
-                                {(subject as any).schedule.startTime} -{' '}
-                                {(subject as any).schedule.endTime}
-                              </p>
-                            </div>
-                            {(subject as any).schedule.room && (
-                              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/30">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <MapPin className="w-4 h-4 text-blue-400" />
-                                  <span className="text-sm text-slate-400">Room</span>
+                          {schedules.map((schedule, index) => (
+                            <div
+                              key={index}
+                              className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/30"
+                            >
+                              <div className="flex items-start justify-between mb-3">
+                                <h4 className="text-lg font-semibold text-slate-200">
+                                  {schedule.slotName}
+                                </h4>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleEditSchedule(index)}
+                                    className="p-2 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-colors"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteSchedule(index)}
+                                    className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
                                 </div>
-                                <p className="text-slate-200 font-medium">
-                                  {(subject as any).schedule.room}
-                                </p>
                               </div>
-                            )}
-                            {(subject as any).schedule.building && (
-                              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/30">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Building2 className="w-4 h-4 text-blue-400" />
-                                  <span className="text-sm text-slate-400">Building</span>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Calendar className="w-4 h-4 text-blue-400" />
+                                    <span className="text-sm text-slate-400">Days</span>
+                                  </div>
+                                  <p className="text-slate-200 font-medium">
+                                    {schedule.days.join(', ')}
+                                  </p>
                                 </div>
-                                <p className="text-slate-200 font-medium">
-                                  {(subject as any).schedule.building}
-                                </p>
+                                <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Clock className="w-4 h-4 text-blue-400" />
+                                    <span className="text-sm text-slate-400">Time</span>
+                                  </div>
+                                  <p className="text-slate-200 font-medium">
+                                    {schedule.startTime} - {schedule.endTime}
+                                  </p>
+                                </div>
+                                {schedule.room && (
+                                  <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <MapPin className="w-4 h-4 text-blue-400" />
+                                      <span className="text-sm text-slate-400">Room</span>
+                                    </div>
+                                    <p className="text-slate-200 font-medium">{schedule.room}</p>
+                                  </div>
+                                )}
+                                {schedule.building && (
+                                  <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <Building2 className="w-4 h-4 text-blue-400" />
+                                      <span className="text-sm text-slate-400">Building</span>
+                                    </div>
+                                    <p className="text-slate-200 font-medium">
+                                      {schedule.building}
+                                    </p>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
+                            </div>
+                          ))}
                         </div>
                       ) : (
                         <div className="text-center py-8 text-slate-400">
                           <Calendar className="w-16 h-16 mx-auto mb-4 text-slate-600" />
-                          <p className="font-medium">No schedule configured</p>
+                          <p className="font-medium">No schedules configured</p>
                           <p className="text-sm mt-2">
                             Click "Add Schedule" to configure class days, times, and location
                           </p>
@@ -1163,10 +1327,10 @@ export default function SubjectDetailsModal({
           {/* Mark All Confirmation Dialog */}
           <ConfirmationDialog
             isOpen={markAllConfirm.isOpen}
-            onClose={() => setMarkAllConfirm({ isOpen: false, status: null })}
+            onClose={() => setMarkAllConfirm({ isOpen: false, status: null, scheduleSlot: null })}
             onConfirm={confirmMarkAll}
             title={`Mark All as ${markAllConfirm.status?.charAt(0).toUpperCase()}${markAllConfirm.status?.slice(1)}`}
-            description={`Are you sure you want to mark all ${filteredEnrolledStudents.length} students as ${markAllConfirm.status}? Email notifications will be sent to students and their guardians.`}
+            description={`Are you sure you want to mark all ${filteredEnrolledStudents.length} students as ${markAllConfirm.status}${markAllConfirm.scheduleSlot ? ` for ${markAllConfirm.scheduleSlot}` : ''}? Email notifications will be sent to students and their guardians.`}
             confirmText="Confirm"
             cancelText="Cancel"
             variant="info"
