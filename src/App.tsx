@@ -13,7 +13,6 @@ const StudentsPage = lazy(() => import('@/pages/StudentsPage'))
 const SubjectsPage = lazy(() => import('@/pages/SubjectsPage'))
 const RecordsPage = lazy(() => import('@/pages/RecordsPage'))
 const EmailHistoryPage = lazy(() => import('@/pages/EmailHistoryPage'))
-const AttendancePage = lazy(() => import('@/pages/AttendancePage'))
 
 /**
  * Loading component shown while routes are being lazy loaded
@@ -33,6 +32,9 @@ function PageLoadingFallback() {
 
 /**
  * Main application component with lazy-loaded routes
+ *
+ * NOTE: Attendance functionality has been integrated into the Subjects page.
+ * The standalone /attendance route has been removed.
  */
 function App() {
   return (
@@ -84,14 +86,9 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path={ROUTES.ATTENDANCE}
-            element={
-              <ProtectedRoute>
-                <AttendancePage />
-              </ProtectedRoute>
-            }
-          />
+
+          {/* Redirect old attendance route to subjects */}
+          <Route path="/attendance" element={<Navigate to={ROUTES.SUBJECTS} replace />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />

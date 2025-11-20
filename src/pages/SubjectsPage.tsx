@@ -13,13 +13,16 @@ import { useToast } from '@/store/toastStore'
 import { subjectService } from '@/services/subject.service'
 import { Subject, SubjectFormData } from '@/types'
 import SubjectModal from '@/components/modals/SubjectModal'
+import SubjectDetailsModal from '@/components/modals/SubjectDetailsModal'
 import { useDebounce } from '@/hooks/useDebounce'
 
 export default function SubjectsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null)
+  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null)
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean
     subject: Subject | null
@@ -97,8 +100,8 @@ export default function SubjectsPage() {
   }
 
   const handleViewDetails = (subject: Subject) => {
-    addToast(`Viewing details for ${subject.subjectCode}`, 'info')
-    // TODO: Navigate to subject details page or open modal
+    setSelectedSubject(subject)
+    setIsDetailsModalOpen(true)
   }
 
   const handleAddSubject = () => {
@@ -117,7 +120,6 @@ export default function SubjectsPage() {
   }
 
   const handleModalSubmit = (data: SubjectFormData, id?: string | number) => {
-    // Prefer the explicit id (passed from the modal) when available.
     const subjectId = id ?? editingSubject?.id
 
     if (subjectId) {
@@ -125,8 +127,6 @@ export default function SubjectsPage() {
       return
     }
 
-    // If there's no id, this is a create operation. Log a warning if editingSubject
-    // was set but somehow doesn't have an id.
     if (editingSubject && !subjectId) {
       console.warn('[Subjects] Editing subject has no id, falling back to create')
       addToast('Editing subject missing id — creating new subject instead', 'warning')
@@ -140,13 +140,18 @@ export default function SubjectsPage() {
     setEditingSubject(null)
   }
 
+  const handleDetailsModalClose = () => {
+    setIsDetailsModalOpen(false)
+    setSelectedSubject(null)
+  }
+
   return (
     <MainLayout>
       <div className="space-y-6">
         {/* Page Header */}
         <PageHeader
           title="Subjects"
-          description="Organize and manage academic subjects, sections, and year levels"
+          description="Manage subjects, enrollment, and attendance tracking"
           icon={BookOpen}
           gradient="from-purple-600 via-violet-600 to-indigo-600"
           stats={[
@@ -264,13 +269,12 @@ export default function SubjectsPage() {
                 ) : (
                   filteredSubjects.map((subject, index) => (
                     <motion.tr
-                      // Use a stable unique key for list items. Prefer `id` or `subjectCode`,
-                      // fall back to index if neither is present.
                       key={subject.id ?? subject.subjectCode ?? `subject-${index}`}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="border-b border-slate-700/30 hover:bg-slate-800/60 transition-colors group"
+                      className="border-b border-slate-700/30 hover:bg-slate-800/60 transition-colors group cursor-pointer"
+                      onClick={() => handleViewDetails(subject)}
                     >
                       <td className="p-5 font-semibold text-purple-400 text-sm">
                         {subject.subjectCode}
@@ -289,12 +293,12 @@ export default function SubjectsPage() {
                           <Users className="w-4 h-4" />0 students
                         </span>
                       </td>
-                      <td className="p-5">
+                      <td className="p-5" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => handleViewDetails(subject)}
                             className="p-2.5 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-blue-500/30"
-                            title="View Details"
+                            title="View Details & Manage Attendance"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
@@ -302,7 +306,7 @@ export default function SubjectsPage() {
                             onClick={() => handleEditSubject(subject)}
                             disabled={updateMutation.isPending}
                             className="p-2.5 text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Edit"
+                            title="Edit Subject"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
@@ -310,7 +314,7 @@ export default function SubjectsPage() {
                             onClick={() => handleDelete(subject)}
                             disabled={deleteMutation.isPending}
                             className="p-2.5 text-red-400 hover:bg-red-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Delete"
+                            title="Delete Subject"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -325,13 +329,20 @@ export default function SubjectsPage() {
         </motion.div>
       </div>
 
-      {/* Subject Modal */}
+      {/* Subject Modal (Create/Edit) */}
       <SubjectModal
         isOpen={isModalOpen}
         onClose={handleModalClose}
         onSubmit={handleModalSubmit}
         subject={editingSubject}
         isLoading={createMutation.isPending || updateMutation.isPending}
+      />
+
+      {/* Subject Details Modal (View/Manage/Attendance) */}
+      <SubjectDetailsModal
+        isOpen={isDetailsModalOpen}
+        onClose={handleDetailsModalClose}
+        subject={selectedSubject}
       />
 
       {/* Confirmation Dialog */}
