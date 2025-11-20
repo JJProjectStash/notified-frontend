@@ -9,6 +9,7 @@
  * - Bulk operations (Mark All with email)
  * - Student list display by default with search
  * - Schedule management (add/edit class schedules)
+ * - Multiple schedules per day support
  */
 
 import { useState, useEffect, useMemo } from 'react'
@@ -329,24 +330,28 @@ export default function SubjectDetailsModal({
     enrollAllMutation.mutate(studentIds)
   }
 
-  // Toggle student selection
+  // Toggle student selection - FIXED
   const toggleStudentSelection = (studentId: number) => {
-    const newSelection = new Set(selectedStudents)
-    if (newSelection.has(studentId)) {
-      newSelection.delete(studentId)
-    } else {
-      newSelection.add(studentId)
-    }
-    setSelectedStudents(newSelection)
+    setSelectedStudents((prev) => {
+      const newSelection = new Set(prev)
+      if (newSelection.has(studentId)) {
+        newSelection.delete(studentId)
+      } else {
+        newSelection.add(studentId)
+      }
+      return newSelection
+    })
   }
 
-  // Select all/none
+  // Select all/none - FIXED
   const toggleSelectAll = () => {
-    if (selectedStudents.size === filteredEnrolledStudents.length) {
-      setSelectedStudents(new Set())
-    } else {
-      setSelectedStudents(new Set(filteredEnrolledStudents.map((e) => e.studentId)))
-    }
+    setSelectedStudents((prev) => {
+      if (prev.size === filteredEnrolledStudents.length) {
+        return new Set()
+      } else {
+        return new Set(filteredEnrolledStudents.map((e) => e.studentId))
+      }
+    })
   }
 
   // Handle schedule form changes
