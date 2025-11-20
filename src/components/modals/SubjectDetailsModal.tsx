@@ -3,11 +3,12 @@
  *
  * Features:
  * - Subject information display with schedule
- * - Student enrollment management
- * - Integrated attendance marking
- * - Bulk operations (Mark All)
- * - Individual student attendance with search
- * - Real-time status updates
+ * - Student enrollment management with visual transfer
+ * - Enroll All functionality
+ * - Integrated attendance marking with email notifications
+ * - Bulk operations (Mark All with email)
+ * - Student list display by default with search
+ * - Schedule management (add/edit class schedules)
  */
 
 import { useState, useEffect, useMemo } from 'react'
@@ -27,17 +28,22 @@ import {
   AlertCircle,
   UserPlus,
   UserMinus,
-  Download,
+  Building2,
+  Save,
+  Loader2,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 import { useToast } from '@/store/toastStore'
 import { Subject, Student, AttendanceRecord } from '@/types'
-import { SubjectEnhanced, EnrolledStudent } from '@/types/subject.types'
+import { SubjectEnhanced, EnrolledStudent, SubjectSchedule } from '@/types/subject.types'
 import { subjectEnrollmentService } from '@/services/subject-enrollment.service'
 import { subjectAttendanceService } from '@/services/subject-attendance.service'
 import { studentService } from '@/services/student.service'
+import { subjectService } from '@/services/subject.service'
 
 interface SubjectDetailsModalProps {
   isOpen: boolean
@@ -46,6 +52,18 @@ interface SubjectDetailsModalProps {
 }
 
 type TabType = 'overview' | 'students' | 'attendance' | 'schedule'
+
+const DAYS_OF_WEEK = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+] as const
+
+type Day = SubjectSchedule['days'][number]
 
 export default function SubjectDetailsModal({
   isOpen,
@@ -56,16 +74,53 @@ export default function SubjectDetailsModal({
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [selectedStudents, setSelectedStudents] = useState<Set<number>>(new Set())
+  const [enrollAllConfirm, setEnrollAllConfirm] = useState(false)
+  const [markAllConfirm, setMarkAllConfirm] = useState<{
+    isOpen: boolean
+    status: 'present' | 'absent' | 'late' | 'excused' | null
+  }>({ isOpen: false, status: null })
+
+  // Schedule form state
+  const [scheduleForm, setScheduleForm] = useState<SubjectSchedule>({
+    days: [],
+    startTime: '',
+    endTime: '',
+    room: '',
+    building: '',
+  })
+  const [isEditingSchedule, setIsEditingSchedule] = useState(false)
+
   const { addToast } = useToast()
   const queryClient = useQueryClient()
 
   // Reset state when modal opens/closes
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && subject) {
       setActiveTab('overview')
       setSearchTerm('')
       setSelectedStudents(new Set())
       setSelectedDate(new Date().toISOString().split('T')[0])
+      setIsEditingSchedule(false)
+
+      // Load existing schedule
+      const existingSchedule = (subject as any).schedule
+      if (existingSchedule) {
+        setScheduleForm({
+          days: existingSchedule.days || [],
+          startTime: existingSchedule.startTime || '',
+          endTime: existingSchedule.endTime || '',
+          room: existingSchedule.room || '',
+          building: existingSchedule.building || '',
+        })
+      } else {
+        setScheduleForm({
+          days: [],
+          startTime: '',
+          endTime: '',
+          room: '',
+          building: '',
+        })
+      }
     }
   }, [isOpen, subject])
 
@@ -128,6 +183,23 @@ export default function SubjectDetailsModal({
     },
   })
 
+  // Enroll all mutation
+  const enrollAllMutation = useMutation({
+    mutationFn: (studentIds: number[]) =>
+      subjectEnrollmentService.enrollAllStudents(subject!.id, studentIds),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['subjects', subject?.id, 'students'] })
+      queryClient.invalidateQueries({ queryKey: ['subjects'] })
+      addToast(`Successfully enrolled ${data.length} students`, 'success')
+      refetchEnrolled()
+      setEnrollAllConfirm(false)
+    },
+    onError: (error: any) => {
+      addToast(error?.message || 'Failed to enroll all students', 'error')
+      setEnrollAllConfirm(false)
+    },
+  })
+
   // Mark attendance mutation
   const markAttendanceMutation = useMutation({
     mutationFn: (data: { studentId: number; status: 'present' | 'absent' | 'late' | 'excused' }) =>
@@ -142,7 +214,7 @@ export default function SubjectDetailsModal({
       queryClient.invalidateQueries({
         queryKey: ['subjects', subject?.id, 'attendance', selectedDate],
       })
-      addToast('Attendance marked successfully', 'success')
+      addToast('Attendance marked and notifications sent', 'success')
       refetchAttendance()
     },
     onError: (error: any) => {
@@ -167,12 +239,32 @@ export default function SubjectDetailsModal({
       queryClient.invalidateQueries({
         queryKey: ['subjects', subject?.id, 'attendance', selectedDate],
       })
-      addToast(`Marked ${variables.studentIds.length} students as ${variables.status}`, 'success')
+      addToast(
+        `Marked ${variables.studentIds.length} students as ${variables.status}. Email notifications sent to students and guardians.`,
+        'success'
+      )
       setSelectedStudents(new Set())
+      setMarkAllConfirm({ isOpen: false, status: null })
       refetchAttendance()
     },
     onError: (error: any) => {
       addToast(error?.message || 'Failed to mark attendance', 'error')
+      setMarkAllConfirm({ isOpen: false, status: null })
+    },
+  })
+
+  // Update schedule mutation
+  const updateScheduleMutation = useMutation({
+    mutationFn: (schedule: SubjectSchedule | null) =>
+      subjectService.updateSchedule(subject!.id, schedule),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subjects'] })
+      queryClient.invalidateQueries({ queryKey: ['subjects', subject?.id] })
+      addToast('Schedule updated successfully', 'success')
+      setIsEditingSchedule(false)
+    },
+    onError: (error: any) => {
+      addToast(error?.message || 'Failed to update schedule', 'error')
     },
   })
 
@@ -182,7 +274,7 @@ export default function SubjectDetailsModal({
     return allStudents.filter((s) => !enrolledIds.has(s.id))
   }, [allStudents, enrolledStudents])
 
-  // Filtered enrolled students
+  // Filtered enrolled students for attendance
   const filteredEnrolledStudents = useMemo(() => {
     if (!searchTerm) return enrolledStudents
     const term = searchTerm.toLowerCase()
@@ -207,23 +299,34 @@ export default function SubjectDetailsModal({
     return map
   }, [attendanceRecords])
 
-  // Handle mark all
+  // Handle mark all with confirmation
   const handleMarkAll = (status: 'present' | 'absent' | 'late' | 'excused') => {
     const studentIds = filteredEnrolledStudents.map((e) => e.studentId)
     if (studentIds.length === 0) {
       addToast('No students to mark', 'warning')
       return
     }
-    bulkMarkMutation.mutate({ studentIds, status })
+    setMarkAllConfirm({ isOpen: true, status })
   }
 
-  // Handle mark selected
-  const handleMarkSelected = (status: 'present' | 'absent' | 'late' | 'excused') => {
-    if (selectedStudents.size === 0) {
-      addToast('No students selected', 'warning')
+  const confirmMarkAll = () => {
+    if (!markAllConfirm.status) return
+    const studentIds = filteredEnrolledStudents.map((e) => e.studentId)
+    bulkMarkMutation.mutate({ studentIds, status: markAllConfirm.status })
+  }
+
+  // Handle enroll all
+  const handleEnrollAll = () => {
+    if (availableStudents.length === 0) {
+      addToast('No students available to enroll', 'warning')
       return
     }
-    bulkMarkMutation.mutate({ studentIds: Array.from(selectedStudents), status })
+    setEnrollAllConfirm(true)
+  }
+
+  const confirmEnrollAll = () => {
+    const studentIds = availableStudents.map((s) => s.id)
+    enrollAllMutation.mutate(studentIds)
   }
 
   // Toggle student selection
@@ -244,6 +347,30 @@ export default function SubjectDetailsModal({
     } else {
       setSelectedStudents(new Set(filteredEnrolledStudents.map((e) => e.studentId)))
     }
+  }
+
+  // Handle schedule form changes
+  const handleDayToggle = (day: Day) => {
+    setScheduleForm((prev) => ({
+      ...prev,
+      days: prev.days.includes(day) ? prev.days.filter((d) => d !== day) : [...prev.days, day],
+    }))
+  }
+
+  const handleScheduleSave = () => {
+    if (scheduleForm.days.length === 0) {
+      addToast('Please select at least one day', 'warning')
+      return
+    }
+    if (!scheduleForm.startTime || !scheduleForm.endTime) {
+      addToast('Please provide start and end times', 'warning')
+      return
+    }
+    if (scheduleForm.startTime >= scheduleForm.endTime) {
+      addToast('End time must be after start time', 'warning')
+      return
+    }
+    updateScheduleMutation.mutate(scheduleForm)
   }
 
   if (!subject) return null
@@ -429,34 +556,111 @@ export default function SubjectDetailsModal({
                           className="pl-12 h-12 border-slate-600 bg-slate-900/50 text-slate-100"
                         />
                       </div>
+                      <Button
+                        onClick={handleEnrollAll}
+                        disabled={availableStudents.length === 0 || enrollAllMutation.isPending}
+                        className="bg-emerald-600 hover:bg-emerald-700 h-12 px-6"
+                      >
+                        {enrollAllMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <UserPlus className="w-4 h-4 mr-2" />
+                        )}
+                        Enroll All ({availableStudents.length})
+                      </Button>
                     </div>
 
-                    {/* Enrolled Students List */}
-                    <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 overflow-hidden">
-                      <div className="p-4 bg-slate-800/50 border-b border-slate-700/50">
-                        <h3 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
-                          <Users className="w-5 h-5 text-blue-400" />
-                          Enrolled Students ({filteredEnrolledStudents.length})
-                        </h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Enrolled Students List */}
+                      <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 overflow-hidden">
+                        <div className="p-4 bg-slate-800/50 border-b border-slate-700/50">
+                          <h3 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
+                            <Users className="w-5 h-5 text-blue-400" />
+                            Enrolled Students ({enrolledStudents.length})
+                          </h3>
+                        </div>
+                        <div className="divide-y divide-slate-700/30 max-h-[500px] overflow-y-auto">
+                          {loadingEnrolled ? (
+                            <div className="p-8 text-center text-slate-400">
+                              Loading students...
+                            </div>
+                          ) : enrolledStudents.length === 0 ? (
+                            <div className="p-8 text-center text-slate-400">
+                              No students enrolled yet
+                            </div>
+                          ) : (
+                            enrolledStudents.map((enrolled) => {
+                              const student = enrolled.student
+                              if (!student) return null
+                              return (
+                                <motion.div
+                                  key={enrolled.id}
+                                  layout
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  exit={{ opacity: 0, x: 20 }}
+                                  className="p-4 hover:bg-slate-800/60 transition-colors flex items-center justify-between"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center text-white font-semibold">
+                                      {student.firstName[0]}
+                                      {student.lastName[0]}
+                                    </div>
+                                    <div>
+                                      <p className="text-slate-200 font-medium">
+                                        {student.firstName} {student.lastName}
+                                      </p>
+                                      <p className="text-sm text-slate-500">
+                                        {student.studentNumber}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => unenrollMutation.mutate(student.id)}
+                                    disabled={unenrollMutation.isPending}
+                                    className="border-red-500/30 text-red-400 hover:bg-red-500/20"
+                                  >
+                                    <UserMinus className="w-4 h-4 mr-1" />
+                                    Remove
+                                  </Button>
+                                </motion.div>
+                              )
+                            })
+                          )}
+                        </div>
                       </div>
-                      <div className="divide-y divide-slate-700/30 max-h-96 overflow-y-auto">
-                        {loadingEnrolled ? (
-                          <div className="p-8 text-center text-slate-400">Loading students...</div>
-                        ) : filteredEnrolledStudents.length === 0 ? (
-                          <div className="p-8 text-center text-slate-400">
-                            {searchTerm ? 'No students found' : 'No students enrolled yet'}
-                          </div>
-                        ) : (
-                          filteredEnrolledStudents.map((enrolled) => {
-                            const student = enrolled.student
-                            if (!student) return null
-                            return (
-                              <div
-                                key={enrolled.id}
+
+                      {/* Available Students */}
+                      <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 overflow-hidden">
+                        <div className="p-4 bg-slate-800/50 border-b border-slate-700/50">
+                          <h3 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
+                            <UserPlus className="w-5 h-5 text-emerald-400" />
+                            Available Students ({availableStudents.length})
+                          </h3>
+                        </div>
+                        <div className="divide-y divide-slate-700/30 max-h-[500px] overflow-y-auto">
+                          {loadingAllStudents ? (
+                            <div className="p-8 text-center text-slate-400">
+                              Loading students...
+                            </div>
+                          ) : availableStudents.length === 0 ? (
+                            <div className="p-8 text-center text-slate-400">
+                              All students are enrolled
+                            </div>
+                          ) : (
+                            availableStudents.map((student) => (
+                              <motion.div
+                                key={student.id}
+                                layout
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
                                 className="p-4 hover:bg-slate-800/60 transition-colors flex items-center justify-between"
                               >
                                 <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center text-white font-semibold">
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-semibold">
                                     {student.firstName[0]}
                                     {student.lastName[0]}
                                   </div>
@@ -471,66 +675,17 @@ export default function SubjectDetailsModal({
                                 </div>
                                 <Button
                                   size="sm"
-                                  variant="outline"
-                                  onClick={() => unenrollMutation.mutate(student.id)}
-                                  disabled={unenrollMutation.isPending}
-                                  className="border-red-500/30 text-red-400 hover:bg-red-500/20"
+                                  onClick={() => enrollMutation.mutate(student.id)}
+                                  disabled={enrollMutation.isPending}
+                                  className="bg-emerald-600 hover:bg-emerald-700"
                                 >
-                                  <UserMinus className="w-4 h-4 mr-1" />
-                                  Remove
+                                  <Plus className="w-4 h-4 mr-1" />
+                                  Enroll
                                 </Button>
-                              </div>
-                            )
-                          })
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Available Students */}
-                    <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 overflow-hidden">
-                      <div className="p-4 bg-slate-800/50 border-b border-slate-700/50">
-                        <h3 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
-                          <UserPlus className="w-5 h-5 text-emerald-400" />
-                          Available Students ({availableStudents.length})
-                        </h3>
-                      </div>
-                      <div className="divide-y divide-slate-700/30 max-h-96 overflow-y-auto">
-                        {loadingAllStudents ? (
-                          <div className="p-8 text-center text-slate-400">Loading students...</div>
-                        ) : availableStudents.length === 0 ? (
-                          <div className="p-8 text-center text-slate-400">
-                            All students are enrolled
-                          </div>
-                        ) : (
-                          availableStudents.map((student) => (
-                            <div
-                              key={student.id}
-                              className="p-4 hover:bg-slate-800/60 transition-colors flex items-center justify-between"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-semibold">
-                                  {student.firstName[0]}
-                                  {student.lastName[0]}
-                                </div>
-                                <div>
-                                  <p className="text-slate-200 font-medium">
-                                    {student.firstName} {student.lastName}
-                                  </p>
-                                  <p className="text-sm text-slate-500">{student.studentNumber}</p>
-                                </div>
-                              </div>
-                              <Button
-                                size="sm"
-                                onClick={() => enrollMutation.mutate(student.id)}
-                                disabled={enrollMutation.isPending}
-                                className="bg-emerald-600 hover:bg-emerald-700"
-                              >
-                                <Plus className="w-4 h-4 mr-1" />
-                                Enroll
-                              </Button>
-                            </div>
-                          ))
-                        )}
+                              </motion.div>
+                            ))
+                          )}
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -543,7 +698,7 @@ export default function SubjectDetailsModal({
                     animate={{ opacity: 1, y: 0 }}
                     className="space-y-6"
                   >
-                    {/* Date Selector and Bulk Actions */}
+                    {/* Date Selector and Search */}
                     <div className="flex flex-col sm:flex-row gap-4">
                       <div className="flex-1">
                         <label className="block text-sm text-slate-400 mb-2">Select Date</label>
@@ -577,7 +732,9 @@ export default function SubjectDetailsModal({
                         <Button
                           size="sm"
                           onClick={() => handleMarkAll('present')}
-                          disabled={bulkMarkMutation.isPending}
+                          disabled={
+                            bulkMarkMutation.isPending || filteredEnrolledStudents.length === 0
+                          }
                           className="bg-emerald-600 hover:bg-emerald-700"
                         >
                           <CheckCircle className="w-4 h-4 mr-1" />
@@ -586,7 +743,9 @@ export default function SubjectDetailsModal({
                         <Button
                           size="sm"
                           onClick={() => handleMarkAll('absent')}
-                          disabled={bulkMarkMutation.isPending}
+                          disabled={
+                            bulkMarkMutation.isPending || filteredEnrolledStudents.length === 0
+                          }
                           className="bg-red-600 hover:bg-red-700"
                         >
                           <XCircle className="w-4 h-4 mr-1" />
@@ -595,7 +754,9 @@ export default function SubjectDetailsModal({
                         <Button
                           size="sm"
                           onClick={() => handleMarkAll('late')}
-                          disabled={bulkMarkMutation.isPending}
+                          disabled={
+                            bulkMarkMutation.isPending || filteredEnrolledStudents.length === 0
+                          }
                           className="bg-amber-600 hover:bg-amber-700"
                         >
                           <Clock className="w-4 h-4 mr-1" />
@@ -604,7 +765,9 @@ export default function SubjectDetailsModal({
                         <Button
                           size="sm"
                           onClick={() => handleMarkAll('excused')}
-                          disabled={bulkMarkMutation.isPending}
+                          disabled={
+                            bulkMarkMutation.isPending || filteredEnrolledStudents.length === 0
+                          }
                           className="bg-purple-600 hover:bg-purple-700"
                         >
                           <AlertCircle className="w-4 h-4 mr-1" />
@@ -779,17 +942,190 @@ export default function SubjectDetailsModal({
                     className="space-y-6"
                   >
                     <div className="bg-slate-900/50 rounded-xl p-6 border border-slate-700/50">
-                      <h3 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
-                        <Calendar className="w-5 h-5 text-blue-400" />
-                        Class Schedule
-                      </h3>
-                      <div className="text-center py-8 text-slate-400">
-                        <Calendar className="w-16 h-16 mx-auto mb-4 text-slate-600" />
-                        <p className="font-medium">Schedule management coming soon</p>
-                        <p className="text-sm mt-2">
-                          Configure class days, times, and room assignments
-                        </p>
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
+                          <Calendar className="w-5 h-5 text-blue-400" />
+                          Class Schedule
+                        </h3>
+                        {!isEditingSchedule && (
+                          <Button
+                            onClick={() => setIsEditingSchedule(true)}
+                            variant="outline"
+                            className="border-blue-500/30 text-blue-400 hover:bg-blue-500/20"
+                          >
+                            {(subject as any).schedule ? 'Edit Schedule' : 'Add Schedule'}
+                          </Button>
+                        )}
                       </div>
+
+                      {isEditingSchedule ? (
+                        <div className="space-y-6">
+                          {/* Days Selection */}
+                          <div>
+                            <Label className="text-slate-300 mb-3 block">Class Days</Label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              {DAYS_OF_WEEK.map((day) => (
+                                <button
+                                  key={day}
+                                  onClick={() => handleDayToggle(day)}
+                                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                    scheduleForm.days.includes(day)
+                                      ? 'bg-blue-600 text-white border-2 border-blue-400'
+                                      : 'bg-slate-800 text-slate-400 border-2 border-slate-700 hover:border-slate-600'
+                                  }`}
+                                >
+                                  {day.slice(0, 3)}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Time Selection */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <Label className="text-slate-300 mb-2 block">Start Time</Label>
+                              <div className="relative">
+                                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                <Input
+                                  type="time"
+                                  value={scheduleForm.startTime}
+                                  onChange={(e) =>
+                                    setScheduleForm({ ...scheduleForm, startTime: e.target.value })
+                                  }
+                                  className="pl-11 h-12 border-slate-600 bg-slate-800 text-slate-100"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-slate-300 mb-2 block">End Time</Label>
+                              <div className="relative">
+                                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                <Input
+                                  type="time"
+                                  value={scheduleForm.endTime}
+                                  onChange={(e) =>
+                                    setScheduleForm({ ...scheduleForm, endTime: e.target.value })
+                                  }
+                                  className="pl-11 h-12 border-slate-600 bg-slate-800 text-slate-100"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Room and Building */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <Label className="text-slate-300 mb-2 block">Room (Optional)</Label>
+                              <div className="relative">
+                                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                <Input
+                                  type="text"
+                                  placeholder="e.g., Room 301"
+                                  value={scheduleForm.room}
+                                  onChange={(e) =>
+                                    setScheduleForm({ ...scheduleForm, room: e.target.value })
+                                  }
+                                  className="pl-11 h-12 border-slate-600 bg-slate-800 text-slate-100"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-slate-300 mb-2 block">
+                                Building (Optional)
+                              </Label>
+                              <div className="relative">
+                                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                <Input
+                                  type="text"
+                                  placeholder="e.g., Science Building"
+                                  value={scheduleForm.building}
+                                  onChange={(e) =>
+                                    setScheduleForm({ ...scheduleForm, building: e.target.value })
+                                  }
+                                  className="pl-11 h-12 border-slate-600 bg-slate-800 text-slate-100"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex gap-3 pt-4">
+                            <Button
+                              onClick={handleScheduleSave}
+                              disabled={updateScheduleMutation.isPending}
+                              className="bg-blue-600 hover:bg-blue-700 flex-1"
+                            >
+                              {updateScheduleMutation.isPending ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <Save className="w-4 h-4 mr-2" />
+                              )}
+                              Save Schedule
+                            </Button>
+                            <Button
+                              onClick={() => setIsEditingSchedule(false)}
+                              variant="outline"
+                              className="border-slate-600"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (subject as any).schedule ? (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/30">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Calendar className="w-4 h-4 text-blue-400" />
+                                <span className="text-sm text-slate-400">Class Days</span>
+                              </div>
+                              <p className="text-slate-200 font-medium">
+                                {(subject as any).schedule.days.join(', ')}
+                              </p>
+                            </div>
+                            <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/30">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Clock className="w-4 h-4 text-blue-400" />
+                                <span className="text-sm text-slate-400">Time</span>
+                              </div>
+                              <p className="text-slate-200 font-medium">
+                                {(subject as any).schedule.startTime} -{' '}
+                                {(subject as any).schedule.endTime}
+                              </p>
+                            </div>
+                            {(subject as any).schedule.room && (
+                              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/30">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <MapPin className="w-4 h-4 text-blue-400" />
+                                  <span className="text-sm text-slate-400">Room</span>
+                                </div>
+                                <p className="text-slate-200 font-medium">
+                                  {(subject as any).schedule.room}
+                                </p>
+                              </div>
+                            )}
+                            {(subject as any).schedule.building && (
+                              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/30">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Building2 className="w-4 h-4 text-blue-400" />
+                                  <span className="text-sm text-slate-400">Building</span>
+                                </div>
+                                <p className="text-slate-200 font-medium">
+                                  {(subject as any).schedule.building}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-slate-400">
+                          <Calendar className="w-16 h-16 mx-auto mb-4 text-slate-600" />
+                          <p className="font-medium">No schedule configured</p>
+                          <p className="text-sm mt-2">
+                            Click "Add Schedule" to configure class days, times, and location
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -805,6 +1141,32 @@ export default function SubjectDetailsModal({
               </div>
             </motion.div>
           </div>
+
+          {/* Enroll All Confirmation Dialog */}
+          <ConfirmationDialog
+            isOpen={enrollAllConfirm}
+            onClose={() => setEnrollAllConfirm(false)}
+            onConfirm={confirmEnrollAll}
+            title="Enroll All Students"
+            description={`Are you sure you want to enroll all ${availableStudents.length} available students in this subject?`}
+            confirmText="Enroll All"
+            cancelText="Cancel"
+            variant="info"
+            isLoading={enrollAllMutation.isPending}
+          />
+
+          {/* Mark All Confirmation Dialog */}
+          <ConfirmationDialog
+            isOpen={markAllConfirm.isOpen}
+            onClose={() => setMarkAllConfirm({ isOpen: false, status: null })}
+            onConfirm={confirmMarkAll}
+            title={`Mark All as ${markAllConfirm.status?.charAt(0).toUpperCase()}${markAllConfirm.status?.slice(1)}`}
+            description={`Are you sure you want to mark all ${filteredEnrolledStudents.length} students as ${markAllConfirm.status}? Email notifications will be sent to students and their guardians.`}
+            confirmText="Confirm"
+            cancelText="Cancel"
+            variant="info"
+            isLoading={bulkMarkMutation.isPending}
+          />
         </>
       )}
     </AnimatePresence>

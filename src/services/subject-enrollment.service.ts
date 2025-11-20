@@ -49,6 +49,16 @@ export const subjectEnrollmentService = {
   },
 
   /**
+   * Enroll all available students in a subject
+   */
+  async enrollAllStudents(
+    subjectId: string | number,
+    studentIds: number[]
+  ): Promise<EnrolledStudent[]> {
+    return this.bulkEnrollStudents({ subjectId, studentIds })
+  },
+
+  /**
    * Check if a student is enrolled in a subject
    */
   async isStudentEnrolled(subjectId: string | number, studentId: number): Promise<boolean> {
