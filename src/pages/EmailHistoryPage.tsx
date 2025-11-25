@@ -8,8 +8,8 @@ import {
   ChevronRight,
   Search,
   Filter,
-  Calendar,
   Users,
+  ChevronDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,7 +20,7 @@ import MainLayout from '@/layouts/MainLayout'
 
 interface EmailRecord {
   _id: string
-  description: string
+  recordData: string
   performedBy: {
     name: string
     email: string
@@ -59,6 +59,7 @@ export default function EmailHistoryPage() {
   })
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'single' | 'bulk'>('all')
+  const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null)
   const toast = useToast()
 
   const fetchEmailHistory = useCallback(
@@ -164,6 +165,10 @@ export default function EmailHistoryPage() {
       recipients: [email.metadata?.recipient || ''],
       count: 1,
     }
+  }
+
+  const toggleExpanded = (emailId: string) => {
+    setExpandedEmailId(expandedEmailId === emailId ? null : emailId)
   }
 
   return (
@@ -274,6 +279,7 @@ export default function EmailHistoryPage() {
                 <tbody className="bg-slate-900/50 divide-y divide-slate-700/30">
                   {filteredEmails.map((email, index) => {
                     const recipientInfo = getRecipientDisplay(email)
+                    const isExpanded = expandedEmailId === email._id
 
                     return (
                       <motion.tr
@@ -291,30 +297,41 @@ export default function EmailHistoryPage() {
                         </td>
                         <td className="px-6 py-5">
                           {recipientInfo.isBulk ? (
-                            <div className="group/tooltip relative">
-                              <div className="flex items-center gap-2 text-sm text-slate-200 font-medium cursor-help">
+                            <div className="relative">
+                              <button
+                                onClick={() => toggleExpanded(email._id)}
+                                className="flex items-center gap-2 text-sm text-slate-200 font-medium hover:text-purple-400 transition-colors cursor-pointer"
+                              >
                                 <Users className="w-4 h-4 text-purple-400" />
                                 <span>{recipientInfo.display}</span>
-                              </div>
-                              {recipientInfo.recipients.length > 0 && (
-                                <div className="invisible group-hover/tooltip:visible absolute z-50 left-0 top-full mt-2 w-80 max-h-60 overflow-y-auto bg-slate-800 border border-slate-700 rounded-lg shadow-enterprise-xl p-3">
+                                <ChevronDown
+                                  className={`w-4 h-4 text-slate-400 transition-transform ${
+                                    isExpanded ? 'rotate-180' : ''
+                                  }`}
+                                />
+                              </button>
+                              {isExpanded && recipientInfo.recipients.length > 0 && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: -10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -10 }}
+                                  className="absolute z-50 left-0 top-full mt-2 w-80 max-h-60 overflow-y-auto bg-slate-800 border border-slate-700 rounded-lg shadow-enterprise-xl p-3"
+                                >
                                   <div className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-2">
                                     <Mail className="w-3 h-3" />
                                     Recipients ({recipientInfo.count}):
                                   </div>
                                   <div className="space-y-1">
-                                    {recipientInfo.recipients.slice(0, 20).map((recipient, idx) => (
-                                      <div key={idx} className="text-xs text-slate-400 truncate">
+                                    {recipientInfo.recipients.map((recipient, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="text-xs text-slate-400 truncate py-1 px-2 hover:bg-slate-700/50 rounded"
+                                      >
                                         • {recipient}
                                       </div>
                                     ))}
-                                    {recipientInfo.recipients.length > 20 && (
-                                      <div className="text-xs text-slate-500 italic">
-                                        ... and {recipientInfo.recipients.length - 20} more
-                                      </div>
-                                    )}
                                   </div>
-                                </div>
+                                </motion.div>
                               )}
                               <div className="text-xs text-slate-500 mt-1">
                                 {email.metadata?.sentCount || email.metadata?.totalRecipients} sent
