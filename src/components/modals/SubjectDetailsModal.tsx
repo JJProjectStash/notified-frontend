@@ -322,10 +322,18 @@ export default function SubjectDetailsModal({
       const student = e.student
       if (!student) return false
       return (
-        String(student.studentNumber ?? '').toLowerCase().includes(term) ||
-        String(student.firstName ?? '').toLowerCase().includes(term) ||
-        String(student.lastName ?? '').toLowerCase().includes(term) ||
-        String(student.email ?? '').toLowerCase().includes(term)
+        String(student.studentNumber ?? '')
+          .toLowerCase()
+          .includes(term) ||
+        String(student.firstName ?? '')
+          .toLowerCase()
+          .includes(term) ||
+        String(student.lastName ?? '')
+          .toLowerCase()
+          .includes(term) ||
+        String(student.email ?? '')
+          .toLowerCase()
+          .includes(term)
       )
     })
   }, [enrolledStudents, searchTerm])
@@ -785,10 +793,10 @@ export default function SubjectDetailsModal({
                                     {String(student.firstName ?? student.studentNumber ?? '?')[0]}
                                     {String(student.lastName ?? '?')[0]}
                                   </div>
-                                    <div>
-                                      <p className="text-slate-200 font-medium">
-                                        {student.firstName ?? 'Unknown'} {student.lastName ?? ''}
-                                      </p>
+                                  <div>
+                                    <p className="text-slate-200 font-medium">
+                                      {student.firstName ?? 'Unknown'} {student.lastName ?? ''}
+                                    </p>
                                     <p className="text-sm text-slate-500">
                                       {student.studentNumber}
                                     </p>

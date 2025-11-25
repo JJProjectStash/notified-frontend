@@ -52,7 +52,7 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
   // Get user from auth store for permission checks
   const user = useAuthStore((state) => state.user)
   // Allow only Superadmin, Admin, or Staff to send bulk emails
-  const isBulkAllowed = user && [ROLES.SUPERADMIN, ROLES.ADMIN, ROLES.STAFF].includes(user.role)
+  const isBulkAllowed = !!user && [ROLES.SUPERADMIN, ROLES.ADMIN, ROLES.STAFF].includes(user.role)
 
   const recipientCount = Array.isArray(recipients)
     ? recipients.length
@@ -108,7 +108,9 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
 
     // Permission check for bulk email (superadmin/admin/staff only)
     if (emails.length > 1 && !isBulkAllowed) {
-      setError('Bulk email requires superadmin, admin, or staff role. You can only send to one recipient.')
+      setError(
+        'Bulk email requires superadmin, admin, or staff role. You can only send to one recipient.'
+      )
       return false
     }
 
@@ -254,8 +256,8 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
                     <div className="flex-1">
                       <p className="text-sm font-medium text-amber-300">Permission Required</p>
                       <p className="text-xs text-amber-400 mt-1">
-                        Bulk email requires superadmin, admin, or staff role. You can only send to one
-                        recipient at a time.
+                        Bulk email requires superadmin, admin, or staff role. You can only send to
+                        one recipient at a time.
                       </p>
                     </div>
                   </motion.div>
