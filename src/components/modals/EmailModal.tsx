@@ -50,7 +50,8 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
 
   // Get user from auth store for permission checks
   const user = useAuthStore((state) => state.user)
-  const isBulkAllowed = user && ['admin', 'staff'].includes(user.role)
+  // Include 'system_admin' in allowed roles for bulk email
+  const isBulkAllowed = user && ['admin', 'staff', 'system_admin'].includes(user.role)
 
   const recipientCount = Array.isArray(recipients)
     ? recipients.length
@@ -104,7 +105,7 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
       return false
     }
 
-    // Permission check for bulk email (admin/staff only)
+    // Permission check for bulk email (admin/staff/system_admin only)
     if (emails.length > 1 && !isBulkAllowed) {
       setError('Bulk email requires admin or staff role. You can only send to one recipient.')
       return false
@@ -411,7 +412,6 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
               </motion.div>
             </div>
 
-            {/* Footer with Actions */}
             {/* Footer with Actions */}
             <div className="px-8 py-6 bg-slate-900/50 border-t border-slate-700/50 flex items-center justify-end gap-3">
               <Button
