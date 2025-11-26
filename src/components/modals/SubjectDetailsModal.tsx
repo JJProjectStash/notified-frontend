@@ -12,6 +12,9 @@
  * - Fixed checkbox selection issues
  * - Select All button for attendance marking
  * - Improved schedule clarification for professors
+ * - Visual indicators for already-marked attendance
+ * - Support for updating attendance status
+ * - All 4 status buttons: Present, Absent, Late, Excused
  */
 
 import { useState, useEffect, useMemo } from 'react'
@@ -37,6 +40,7 @@ import {
   Trash2,
   Edit,
   Info,
+  RefreshCw,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
@@ -257,7 +261,7 @@ export default function SubjectDetailsModal({
       queryClient.invalidateQueries({
         queryKey: ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
       })
-      addToast('Attendance marked and notifications sent', 'success')
+      addToast('Attendance marked successfully', 'success')
       refetchAttendance()
     },
     onError: (error: any) => {
@@ -835,126 +839,237 @@ export default function SubjectDetailsModal({
                     className="space-y-6"
                   >
                     {/* Date Selector and Search */}
-                    <div className="flex flex-col sm:flex-row gap-4">
-                      <div className="flex-1">
-                        <label className="block text-sm text-slate-400 mb-2">Select Date</label>
-                        <Input
-                          type="date"
-                          value={selectedDate}
-                          onChange={(e) => setSelectedDate(e.target.value)}
-                          max={new Date().toISOString().split('T')[0]}
-                          className="h-12 border-slate-600 bg-slate-900/50 text-slate-100"
-                        />
-                      </div>
-                      {schedules.length > 0 && (
-                        <div className="flex-1">
-                          <label className="text-sm text-slate-400 mb-2 flex items-center gap-2">
-                            Schedule Slot
-                            <div className="group relative">
-                              <Info className="w-4 h-4 text-slate-500 cursor-help" />
-                              <div className="invisible group-hover:visible absolute z-10 left-0 top-full mt-1 w-64 p-3 bg-slate-800 border border-slate-700 rounded-lg shadow-xl text-xs text-slate-300">
-                                Select a specific class session (e.g., Lecture, Lab) to mark
-                                attendance only for that session. Leave as "All Slots" to view all
-                                attendance records for the day.
-                              </div>
-                            </div>
-                          </label>
-                          <select
-                            value={selectedScheduleSlot || ''}
-                            onChange={(e) => setSelectedScheduleSlot(e.target.value || null)}
-                            className="w-full h-12 px-4 border border-slate-600 bg-slate-900/50 text-slate-100 rounded-lg"
-                          >
-                            <option value="">All Slots</option>
-                            {schedules.map((schedule, index) => (
-                              <option key={index} value={schedule.slotName}>
-                                {schedule.slotName} ({schedule.startTime} - {schedule.endTime})
-                              </option>
-                            ))}
-                          </select>
+                    {/* STEP 1: Session Selection - Most Important */}
+                    <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 rounded-xl p-6 border-2 border-blue-500/30">
+                      <div className="flex items-start gap-3 mb-4">
+                        <div className="bg-blue-500/20 p-2 rounded-lg">
+                          <Calendar className="w-5 h-5 text-blue-400" />
                         </div>
-                      )}
-                      <div className="flex-1">
-                        <label className="block text-sm text-slate-400 mb-2">Search Students</label>
-                        <div className="relative">
-                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-slate-200 mb-1">
+                            Step 1: Select Class Session
+                          </h3>
+                          <p className="text-sm text-slate-400">
+                            Choose the date and class schedule to mark attendance
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">
+                            Date
+                          </label>
                           <Input
-                            type="text"
-                            placeholder="Search by name or number..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-12 h-12 border-slate-600 bg-slate-900/50 text-slate-100"
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => {
+                              setSelectedDate(e.target.value)
+                              setSelectedStudents(new Set())
+                            }}
+                            max={new Date().toISOString().split('T')[0]}
+                            className="h-12 border-slate-600 bg-slate-900/50 text-slate-100"
                           />
                         </div>
-                      </div>
-                    </div>
 
-                    {/* Mark All Toolbar */}
-                    <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700/50">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <span className="text-sm font-semibold text-slate-300">Mark All:</span>
-                        <Button
-                          size="sm"
-                          onClick={() => handleMarkAll('present')}
-                          disabled={
-                            bulkMarkMutation.isPending || filteredEnrolledStudents.length === 0
-                          }
-                          className="bg-emerald-600 hover:bg-emerald-700"
-                        >
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                          Present
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleMarkAll('absent')}
-                          disabled={
-                            bulkMarkMutation.isPending || filteredEnrolledStudents.length === 0
-                          }
-                          className="bg-red-600 hover:bg-red-700"
-                        >
-                          <XCircle className="w-4 h-4 mr-1" />
-                          Absent
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleMarkAll('late')}
-                          disabled={
-                            bulkMarkMutation.isPending || filteredEnrolledStudents.length === 0
-                          }
-                          className="bg-amber-600 hover:bg-amber-700"
-                        >
-                          <Clock className="w-4 h-4 mr-1" />
-                          Late
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleMarkAll('excused')}
-                          disabled={
-                            bulkMarkMutation.isPending || filteredEnrolledStudents.length === 0
-                          }
-                          className="bg-purple-600 hover:bg-purple-700"
-                        >
-                          <AlertCircle className="w-4 h-4 mr-1" />
-                          Excused
-                        </Button>
-                        <div className="w-px h-6 bg-slate-600" />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleSelectAll}
-                          disabled={filteredEnrolledStudents.length === 0}
-                          className="border-slate-600"
-                        >
-                          {allFilteredSelected ? 'Deselect All' : 'Select All'}
-                        </Button>
-                        {selectedStudents.size > 0 && (
-                          <span className="text-sm text-slate-400">
-                            {selectedStudents.size} selected
-                          </span>
+                        {schedules.length > 0 && (
+                          <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                              Class Schedule
+                            </label>
+                            <select
+                              value={selectedScheduleSlot || ''}
+                              onChange={(e) => {
+                                setSelectedScheduleSlot(e.target.value || null)
+                                setSelectedStudents(new Set())
+                              }}
+                              className="w-full h-12 px-4 border border-slate-600 bg-slate-900/50 text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="">⚠️ Select a schedule slot</option>
+                              {schedules.map((schedule, index) => (
+                                <option key={index} value={schedule.slotName}>
+                                  📅 {schedule.slotName} • {schedule.startTime} - {schedule.endTime}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-slate-500 mt-1">
+                              💡 Tip: Each schedule tracks attendance separately
+                            </p>
+                          </div>
                         )}
                       </div>
+
+                      {schedules.length === 0 && (
+                        <div className="mt-4 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-start gap-2">
+                          <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-medium text-amber-400">No schedules configured</p>
+                            <p className="text-xs text-amber-300/80 mt-1">
+                              Go to the Schedule tab to add class times before marking attendance
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Students List with Attendance - FIXED CHECKBOXES */}
+                    {/* STEP 2: Quick Actions */}
+                    {schedules.length > 0 && (
+                      <div className="bg-slate-900/50 rounded-xl p-5 border border-slate-700/50">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-5 h-5 text-emerald-400" />
+                            <h3 className="text-sm font-semibold text-slate-200">
+                              Step 2: Quick Bulk Actions
+                            </h3>
+                          </div>
+                          <span className="text-xs text-slate-400 bg-slate-800 px-3 py-1 rounded-full">
+                            {filteredEnrolledStudents.length} students
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Button
+                            size="sm"
+                            onClick={() => handleMarkAll('present')}
+                            disabled={
+                              bulkMarkMutation.isPending || 
+                              filteredEnrolledStudents.length === 0 ||
+                              !selectedScheduleSlot
+                            }
+                            className="bg-emerald-600 hover:bg-emerald-700"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Mark All Present
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleMarkAll('absent')}
+                            disabled={
+                              bulkMarkMutation.isPending || 
+                              filteredEnrolledStudents.length === 0 ||
+                              !selectedScheduleSlot
+                            }
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            <XCircle className="w-4 h-4 mr-1" />
+                            Mark All Absent
+                          </Button>
+
+                          <div className="w-px h-6 bg-slate-600" />
+                          
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleSelectAll}
+                            disabled={filteredEnrolledStudents.length === 0}
+                            className="border-slate-600"
+                          >
+                            {allFilteredSelected ? '☑️ Deselect All' : '☐ Select All'}
+                          </Button>
+
+                          {selectedStudents.size > 0 && (
+                            <>
+                              <div className="w-px h-6 bg-slate-600" />
+                              <span className="text-sm font-medium text-blue-400 flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4" />
+                                {selectedStudents.size} selected
+                              </span>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    const studentIds = Array.from(selectedStudents)
+                                    bulkMarkMutation.mutate({
+                                      studentIds,
+                                      status: 'present',
+                                      scheduleSlot: selectedScheduleSlot || undefined,
+                                    })
+                                  }}
+                                  disabled={bulkMarkMutation.isPending || !selectedScheduleSlot}
+                                  className="bg-emerald-600 hover:bg-emerald-700"
+                                >
+                                  Present
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    const studentIds = Array.from(selectedStudents)
+                                    bulkMarkMutation.mutate({
+                                      studentIds,
+                                      status: 'absent',
+                                      scheduleSlot: selectedScheduleSlot || undefined,
+                                    })
+                                  }}
+                                  disabled={bulkMarkMutation.isPending || !selectedScheduleSlot}
+                                  className="bg-red-600 hover:bg-red-700"
+                                >
+                                  Absent
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    const studentIds = Array.from(selectedStudents)
+                                    bulkMarkMutation.mutate({
+                                      studentIds,
+                                      status: 'late',
+                                      scheduleSlot: selectedScheduleSlot || undefined,
+                                    })
+                                  }}
+                                  disabled={bulkMarkMutation.isPending || !selectedScheduleSlot}
+                                  className="bg-amber-600 hover:bg-amber-700"
+                                >
+                                  Late
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    const studentIds = Array.from(selectedStudents)
+                                    bulkMarkMutation.mutate({
+                                      studentIds,
+                                      status: 'excused',
+                                      scheduleSlot: selectedScheduleSlot || undefined,
+                                    })
+                                  }}
+                                  disabled={bulkMarkMutation.isPending || !selectedScheduleSlot}
+                                  className="bg-purple-600 hover:bg-purple-700"
+                                >
+                                  Excused
+                                </Button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {!selectedScheduleSlot && (
+                          <p className="text-xs text-amber-400 mt-3 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            Please select a schedule slot above to use bulk actions
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* STEP 3: Student Search */}
+                    <div className="relative">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 z-10" />
+                      <Input
+                        type="text"
+                        placeholder="🔍 Search students by name or student number..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-12 h-12 border-slate-600 bg-slate-900/50 text-slate-100"
+                      />
+                      {searchTerm && (
+                        <button
+                          onClick={() => setSearchTerm('')}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Students List with Attendance - WITH ALL 4 BUTTONS + VISUAL INDICATORS */}
                     <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 overflow-hidden">
                       <div className="divide-y divide-slate-700/30 max-h-[500px] overflow-y-auto">
                         {loadingEnrolled || loadingAttendance ? (
@@ -966,9 +1081,7 @@ export default function SubjectDetailsModal({
                         ) : (
                           filteredEnrolledStudents.map((enrolled) => {
                             const student = enrolled.student
-                            // Ensure we have an authoritative student id from the enrollment record
                             const studentId = enrolled.studentId
-                            // If there's no student id, skip rendering this row for safety
                             if (!studentId) return null
                             const attendanceRecord = attendanceStatusMap.get(studentId)
                             const status = attendanceRecord?.status
@@ -977,11 +1090,21 @@ export default function SubjectDetailsModal({
                             return (
                               <div
                                 key={enrolled.id}
-                                className="p-4 hover:bg-slate-800/60 transition-colors"
+                                className={`p-4 transition-all ${
+                                  status
+                                    ? 'bg-slate-800/60 border-l-4 ' +
+                                      (status === 'present'
+                                        ? 'border-emerald-500 bg-emerald-500/5'
+                                        : status === 'absent'
+                                          ? 'border-red-500 bg-red-500/5'
+                                          : status === 'late'
+                                            ? 'border-amber-500 bg-amber-500/5'
+                                            : 'border-purple-500 bg-purple-500/5')
+                                    : 'hover:bg-slate-800/60 border-l-4 border-transparent'
+                                }`}
                               >
                                 <div className="flex items-center justify-between gap-4">
                                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    {/* FIXED: Using proper Checkbox component with controlled state */}
                                     <Checkbox
                                       checked={isSelected}
                                       onCheckedChange={(checked) =>
@@ -1006,21 +1129,40 @@ export default function SubjectDetailsModal({
                                       </p>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                                     {status ? (
-                                      <span
-                                        className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                          status === 'present'
-                                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                            : status === 'absent'
-                                              ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                                              : status === 'late'
-                                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                                                : 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
-                                        }`}
-                                      >
-                                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                                      </span>
+                                      <>
+                                        <span
+                                          className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${
+                                            status === 'present'
+                                              ? 'bg-emerald-500/30 text-emerald-300 border-2 border-emerald-500'
+                                              : status === 'absent'
+                                                ? 'bg-red-500/30 text-red-300 border-2 border-red-500'
+                                                : status === 'late'
+                                                  ? 'bg-amber-500/30 text-amber-300 border-2 border-amber-500'
+                                                  : 'bg-purple-500/30 text-purple-300 border-2 border-purple-500'
+                                          }`}
+                                        >
+                                          {status}
+                                        </span>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                            markAttendanceMutation.mutate({
+                                              studentId: studentId,
+                                              status: 'present',
+                                              scheduleSlot: selectedScheduleSlot || undefined,
+                                            })
+                                          }
+                                          disabled={markAttendanceMutation.isPending}
+                                          className="border-blue-500/30 text-blue-400 hover:bg-blue-500/20 h-8 px-3"
+                                          title="Change to another status"
+                                        >
+                                          <RefreshCw className="w-3 h-3 mr-1" />
+                                          Change
+                                        </Button>
+                                      </>
                                     ) : (
                                       <>
                                         <Button
@@ -1033,7 +1175,7 @@ export default function SubjectDetailsModal({
                                             })
                                           }
                                           disabled={markAttendanceMutation.isPending}
-                                          className="bg-emerald-600 hover:bg-emerald-700 h-8 px-3"
+                                          className="bg-emerald-600 hover:bg-emerald-700 h-8 px-2.5"
                                         >
                                           <CheckCircle className="w-3 h-3 mr-1" />
                                           Present
@@ -1048,10 +1190,40 @@ export default function SubjectDetailsModal({
                                             })
                                           }
                                           disabled={markAttendanceMutation.isPending}
-                                          className="bg-red-600 hover:bg-red-700 h-8 px-3"
+                                          className="bg-red-600 hover:bg-red-700 h-8 px-2.5"
                                         >
                                           <XCircle className="w-3 h-3 mr-1" />
                                           Absent
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          onClick={() =>
+                                            markAttendanceMutation.mutate({
+                                              studentId: studentId,
+                                              status: 'late',
+                                              scheduleSlot: selectedScheduleSlot || undefined,
+                                            })
+                                          }
+                                          disabled={markAttendanceMutation.isPending}
+                                          className="bg-amber-600 hover:bg-amber-700 h-8 px-2.5"
+                                        >
+                                          <Clock className="w-3 h-3 mr-1" />
+                                          Late
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          onClick={() =>
+                                            markAttendanceMutation.mutate({
+                                              studentId: studentId,
+                                              status: 'excused',
+                                              scheduleSlot: selectedScheduleSlot || undefined,
+                                            })
+                                          }
+                                          disabled={markAttendanceMutation.isPending}
+                                          className="bg-purple-600 hover:bg-purple-700 h-8 px-2.5"
+                                        >
+                                          <AlertCircle className="w-3 h-3 mr-1" />
+                                          Excused
                                         </Button>
                                       </>
                                     )}
@@ -1115,7 +1287,7 @@ export default function SubjectDetailsModal({
                   </motion.div>
                 )}
 
-                {/* Schedule Tab */}
+                {/* Schedule Tab - keeping existing code */}
                 {activeTab === 'schedule' && (
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
