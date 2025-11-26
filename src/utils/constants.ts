@@ -1,5 +1,5 @@
 // Use environment variable when provided, otherwise default to local backend
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
 export const APP_NAME = import.meta.env.VITE_APP_NAME || 'Notified'
 export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0'
