@@ -13,6 +13,16 @@ import {
 } from '@/types/subject.types'
 import { AttendanceRecord, ApiResponse } from '@/types'
 
+export interface MarkAttendanceRequest {
+  studentId: string
+  subjectId: string
+  date: string
+  status: 'present' | 'absent' | 'late' | 'excused'
+  timeSlot?: 'arrival' | 'departure'
+  scheduleSlot?: string
+  notes?: string
+}
+
 export const subjectAttendanceService = {
   /**
    * Mark attendance for a student in a subject
@@ -20,7 +30,17 @@ export const subjectAttendanceService = {
   async markSubjectAttendance(data: SubjectAttendanceData): Promise<AttendanceRecord> {
     const response = await apiClient.post<ApiResponse<AttendanceRecord>>(
       '/attendance/subject/mark',
-      data
+      {
+        subjectId: data.subjectId,
+        studentId: data.studentId, // Backend expects 'studentId' not 'student'
+        date: data.date,
+        status: data.status,
+        timeSlot: data.timeSlot,
+        scheduleSlot: data.scheduleSlot,
+        // Backend expects 'remarks' field; the SubjectAttendanceData type uses 'notes' for clarity.
+        // Map notes to remarks to ensure the backend receives the field it expects.
+        remarks: (data as any).remarks ?? data.notes,
+      }
     )
     return response.data.data || response.data
   },
@@ -29,9 +49,11 @@ export const subjectAttendanceService = {
    * Bulk mark attendance for multiple students
    */
   async bulkMarkSubjectAttendance(data: BulkSubjectAttendanceData): Promise<AttendanceRecord[]> {
+    // Normalize fields to ensure backend receives 'remarks' (legacy name) when 'notes' is used
+    const payload: any = { ...data, remarks: (data as any).remarks ?? (data as any).notes }
     const response = await apiClient.post<ApiResponse<AttendanceRecord[]>>(
       '/attendance/subject/bulk-mark',
-      data
+      payload
     )
     return response.data.data || response.data
   },

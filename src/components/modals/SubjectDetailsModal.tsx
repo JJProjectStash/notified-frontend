@@ -42,6 +42,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 import { useToast } from '@/store/toastStore'
 import { Subject, Student, AttendanceRecord } from '@/types'
@@ -205,7 +206,7 @@ export default function SubjectDetailsModal({
     },
   })
 
-  // Unenroll student mutation
+  // Unenroll student mutation - FIXED to use correct student ID
   const unenrollMutation = useMutation({
     mutationFn: (studentId: number) =>
       subjectEnrollmentService.unenrollStudent(subject!.id, studentId),
@@ -387,14 +388,14 @@ export default function SubjectDetailsModal({
     enrollAllMutation.mutate(studentIds)
   }
 
-  // Toggle student selection - FIXED
-  const toggleStudentSelection = (studentId: number) => {
+  // FIXED: Toggle student selection with proper event handling
+  const toggleStudentSelection = (studentId: number, checked: boolean) => {
     setSelectedStudents((prev) => {
       const newSelection = new Set(prev)
-      if (newSelection.has(studentId)) {
-        newSelection.delete(studentId)
-      } else {
+      if (checked) {
         newSelection.add(studentId)
+      } else {
+        newSelection.delete(studentId)
       }
       return newSelection
     })
@@ -750,10 +751,10 @@ export default function SubjectDetailsModal({
                                       </p>
                                     </div>
                                   </div>
-                                  <Button
+                                    <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => unenrollMutation.mutate(student.id)}
+                                    onClick={() => unenrollMutation.mutate(enrolled.studentId)}
                                     disabled={unenrollMutation.isPending}
                                     className="border-red-500/30 text-red-400 hover:bg-red-500/20"
                                   >
@@ -953,7 +954,7 @@ export default function SubjectDetailsModal({
                       </div>
                     </div>
 
-                    {/* Students List with Attendance */}
+                    {/* Students List with Attendance - FIXED CHECKBOXES */}
                     <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 overflow-hidden">
                       <div className="divide-y divide-slate-700/30 max-h-[500px] overflow-y-auto">
                         {loadingEnrolled || loadingAttendance ? (
@@ -965,10 +966,13 @@ export default function SubjectDetailsModal({
                         ) : (
                           filteredEnrolledStudents.map((enrolled) => {
                             const student = enrolled.student
-                            if (!student) return null
-                            const attendanceRecord = attendanceStatusMap.get(student.id)
+                            // Ensure we have an authoritative student id from the enrollment record
+                            const studentId = enrolled.studentId
+                            // If there's no student id, skip rendering this row for safety
+                            if (!studentId) return null
+                            const attendanceRecord = attendanceStatusMap.get(studentId)
                             const status = attendanceRecord?.status
-                            const isSelected = selectedStudents.has(student.id)
+                            const isSelected = selectedStudents.has(studentId)
 
                             return (
                               <div
@@ -977,22 +981,24 @@ export default function SubjectDetailsModal({
                               >
                                 <div className="flex items-center justify-between gap-4">
                                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    <input
-                                      type="checkbox"
+                                    {/* FIXED: Using proper Checkbox component with controlled state */}
+                                    <Checkbox
                                       checked={isSelected}
-                                      onChange={() => toggleStudentSelection(student.id)}
-                                      className="w-5 h-5 rounded border-slate-600 text-purple-600 focus:ring-2 focus:ring-purple-500 cursor-pointer"
+                                      onCheckedChange={(checked) =>
+                                        toggleStudentSelection(studentId, checked as boolean)
+                                      }
+                                      className="w-5 h-5"
                                     />
                                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center text-white font-semibold flex-shrink-0">
-                                      {String(student.firstName ?? student.studentNumber ?? '?')[0]}
-                                      {String(student.lastName ?? '?')[0]}
+                                      {String(student?.firstName ?? student?.studentNumber ?? '?')[0]}
+                                      {String(student?.lastName ?? '?')[0]}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <p className="text-slate-200 font-medium truncate">
-                                        {student.firstName ?? 'Unknown'} {student.lastName ?? ''}
+                                        {student?.firstName ?? 'Unknown'} {student?.lastName ?? ''}
                                       </p>
                                       <p className="text-sm text-slate-500">
-                                        {student.studentNumber}
+                                        {student?.studentNumber ?? ''}
                                       </p>
                                     </div>
                                   </div>
@@ -1016,8 +1022,8 @@ export default function SubjectDetailsModal({
                                         <Button
                                           size="sm"
                                           onClick={() =>
-                                            markAttendanceMutation.mutate({
-                                              studentId: student.id,
+                                                markAttendanceMutation.mutate({
+                                                  studentId: studentId,
                                               status: 'present',
                                               scheduleSlot: selectedScheduleSlot || undefined,
                                             })
@@ -1032,7 +1038,7 @@ export default function SubjectDetailsModal({
                                           size="sm"
                                           onClick={() =>
                                             markAttendanceMutation.mutate({
-                                              studentId: student.id,
+                                              studentId: studentId,
                                               status: 'absent',
                                               scheduleSlot: selectedScheduleSlot || undefined,
                                             })
