@@ -466,7 +466,7 @@ export default function StudentsPage() {
               <thead className="bg-gradient-to-r from-blue-600 to-indigo-600">
                 <tr>
                   <th className="text-left p-5">
-                      <div className="flex items-center">
+                    <div className="flex items-center">
                       <Checkbox
                         checked={
                           selectedStudents.size === filteredStudents.length &&
