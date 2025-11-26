@@ -903,7 +903,9 @@ export default function SubjectDetailsModal({
                         <div className="mt-4 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-start gap-2">
                           <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
                           <div>
-                            <p className="text-sm font-medium text-amber-400">No schedules configured</p>
+                            <p className="text-sm font-medium text-amber-400">
+                              No schedules configured
+                            </p>
                             <p className="text-xs text-amber-300/80 mt-1">
                               Go to the Schedule tab to add class times before marking attendance
                             </p>
@@ -932,7 +934,7 @@ export default function SubjectDetailsModal({
                             size="sm"
                             onClick={() => handleMarkAll('present')}
                             disabled={
-                              bulkMarkMutation.isPending || 
+                              bulkMarkMutation.isPending ||
                               filteredEnrolledStudents.length === 0 ||
                               !selectedScheduleSlot
                             }
@@ -945,7 +947,7 @@ export default function SubjectDetailsModal({
                             size="sm"
                             onClick={() => handleMarkAll('absent')}
                             disabled={
-                              bulkMarkMutation.isPending || 
+                              bulkMarkMutation.isPending ||
                               filteredEnrolledStudents.length === 0 ||
                               !selectedScheduleSlot
                             }
@@ -956,7 +958,7 @@ export default function SubjectDetailsModal({
                           </Button>
 
                           <div className="w-px h-6 bg-slate-600" />
-                          
+
                           <Button
                             size="sm"
                             variant="outline"
