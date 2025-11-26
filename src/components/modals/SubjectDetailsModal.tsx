@@ -1,10 +1,10 @@
 /**
- * SubjectDetailsModal - Fixed & Polished
+ * SubjectDetailsModal - Linter Fixed Version
  *
  * Updates:
- * - High Contrast: Lightened text colors for better readability on dark backgrounds.
- * - Auto-Sync: Forces a fresh fetch of 'students' on open to remove deleted users.
- * - Bug Fix: Fixed "unique key" warnings by using correct ID fields.
+ * - Fixed @typescript-eslint/no-unused-expressions error in handleSelectAll
+ * - Fixed potential similar error in toggleStudentSelection
+ * - Kept all previous fixes (Contrast, Auto-Sync, Unique Keys)
  */
 
 import { useState, useEffect, useMemo } from 'react'
@@ -124,7 +124,7 @@ export default function SubjectDetailsModal({
       setEditingScheduleIndex(null)
       setSelectedScheduleSlot(null)
 
-      // FIX: Force refresh of students list to remove deleted ones
+      // Force refresh of students list to remove deleted ones
       queryClient.invalidateQueries({ queryKey: ['students'] })
 
       // Normalize Legacy Schedule Data
@@ -178,7 +178,7 @@ export default function SubjectDetailsModal({
     queryKey: ['students'],
     queryFn: studentService.getAll,
     enabled: isOpen && activeTab === 'students',
-    // FIX: Ensure we don't use stale data from before a deletion
+    // Ensure we don't use stale data from before a deletion
     staleTime: 0,
     refetchOnMount: true,
   })
@@ -202,7 +202,7 @@ export default function SubjectDetailsModal({
 
   const availableStudents = useMemo(() => {
     const enrolledIds = new Set(validEnrolledStudents.map((e) => e.studentId))
-    // FIX: Filter out any potential bad data/nulls from allStudents
+    // Filter out any potential bad data/nulls from allStudents
     return allStudents.filter((s) => s && s.id && !enrolledIds.has(s.id))
   }, [allStudents, validEnrolledStudents])
 
@@ -370,7 +370,11 @@ export default function SubjectDetailsModal({
   const toggleStudentSelection = (studentId: number, checked: boolean) => {
     setSelectedStudents((prev) => {
       const newSelection = new Set(prev)
-      checked ? newSelection.add(studentId) : newSelection.delete(studentId)
+      if (checked) {
+        newSelection.add(studentId)
+      } else {
+        newSelection.delete(studentId)
+      }
       return newSelection
     })
   }
@@ -380,7 +384,16 @@ export default function SubjectDetailsModal({
       const filteredIds = new Set(filteredEnrolledStudents.map((e) => e.studentId))
       const allSelected = filteredEnrolledStudents.every((e) => prev.has(e.studentId))
       const newSelection = new Set(prev)
-      filteredIds.forEach((id) => (allSelected ? newSelection.delete(id) : newSelection.add(id)))
+
+      // FIXED: Replaced ternary with if/else to satisfy linter
+      filteredIds.forEach((id) => {
+        if (allSelected) {
+          newSelection.delete(id)
+        } else {
+          newSelection.add(id)
+        }
+      })
+
       return newSelection
     })
   }
