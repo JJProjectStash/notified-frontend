@@ -160,7 +160,7 @@ export default function StudentModal({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', duration: 0.5 }}
-              className="bg-slate-800/95 backdrop-blur-xl rounded-3xl shadow-enterprise-2xl border border-slate-700/50 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+              className="bg-slate-800/95 backdrop-blur-xl rounded-3xl shadow-enterprise-2xl border border-slate-700/50 w-full max-w-2xl max-h-[90vh] overflow-y-auto thin-scrollbar"
             >
               {/* Header */}
               <div className="sticky top-0 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white p-6 rounded-t-3xl shadow-lg z-10 border-b border-blue-500/30">

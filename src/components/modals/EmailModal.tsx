@@ -242,7 +242,7 @@ export default function EmailModal({ isOpen, onClose, recipients, onSend }: Emai
             </div>
 
             {/* Form Content */}
-            <div className="p-8 space-y-6 max-h-[calc(100vh-300px)] overflow-y-auto">
+            <div className="p-8 space-y-6 max-h-[calc(100vh-300px)] overflow-y-auto thin-scrollbar">
               {/* Permission Warning for Bulk Email */}
               <AnimatePresence>
                 {hasPermissionIssue && (

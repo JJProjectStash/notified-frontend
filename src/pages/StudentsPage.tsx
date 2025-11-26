@@ -17,6 +17,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import MainLayout from '@/layouts/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { TableSkeleton } from '@/components/ui/skeleton'
@@ -465,14 +466,13 @@ export default function StudentsPage() {
               <thead className="bg-gradient-to-r from-blue-600 to-indigo-600">
                 <tr>
                   <th className="text-left p-5">
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
+                      <div className="flex items-center">
+                      <Checkbox
                         checked={
                           selectedStudents.size === filteredStudents.length &&
                           filteredStudents.length > 0
                         }
-                        onChange={toggleSelectAll}
+                        onCheckedChange={() => toggleSelectAll()}
                         className="w-5 h-5 rounded-md border-2 border-white/30 text-blue-600 focus:ring-2 focus:ring-white/50 focus:ring-offset-0 cursor-pointer transition-all hover:scale-110 bg-white/10"
                       />
                     </div>
@@ -536,10 +536,9 @@ export default function StudentsPage() {
                     >
                       <td className="p-5">
                         <div className="flex items-center">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={selectedStudents.has(student.id)}
-                            onChange={() => toggleSelection(student.id)}
+                            onCheckedChange={() => toggleSelection(student.id)}
                             className="w-5 h-5 rounded-md border-2 border-slate-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer transition-all hover:scale-110 hover:border-blue-400 bg-slate-800"
                           />
                         </div>

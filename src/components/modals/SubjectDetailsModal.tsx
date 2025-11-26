@@ -534,7 +534,7 @@ export default function SubjectDetailsModal({
               </div>
 
               {/* Main Content Area */}
-              <div className="flex-1 overflow-y-auto bg-slate-900 p-6 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+              <div className="flex-1 overflow-y-auto bg-slate-900 p-6 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent thin-scrollbar">
                 {/* 1. OVERVIEW TAB */}
                 {activeTab === 'overview' && (
                   <motion.div
@@ -653,7 +653,7 @@ export default function SubjectDetailsModal({
                             Enrolled ({validEnrolledStudents.length})
                           </h3>
                         </div>
-                        <div className="overflow-y-auto p-2 space-y-1 flex-1">
+                        <div className="overflow-y-auto p-2 space-y-1 flex-1 thin-scrollbar">
                           {loadingEnrolled ? (
                             <div className="flex justify-center p-8">
                               <Loader2 className="animate-spin text-slate-500" />
@@ -702,7 +702,7 @@ export default function SubjectDetailsModal({
                         <div className="p-4 border-b border-slate-700/50 bg-slate-800/50">
                           <h3 className="font-semibold text-slate-200">Available to Enroll</h3>
                         </div>
-                        <div className="overflow-y-auto p-2 space-y-1 flex-1">
+                        <div className="overflow-y-auto p-2 space-y-1 flex-1 thin-scrollbar">
                           {loadingAllStudents ? (
                             <div className="flex justify-center p-8">
                               <Loader2 className="animate-spin text-slate-500" />
@@ -957,7 +957,7 @@ export default function SubjectDetailsModal({
                           className="bg-transparent border-none focus:ring-0 text-sm w-full text-slate-200 placeholder:text-slate-500"
                         />
                       </div>
-                      <div className="max-h-[500px] overflow-y-auto">
+                      <div className="max-h-[500px] overflow-y-auto thin-scrollbar">
                         {!selectedScheduleSlot ? (
                           <div className="py-12 flex flex-col items-center justify-center text-slate-500">
                             <Calendar className="w-12 h-12 mb-3 opacity-20" />
