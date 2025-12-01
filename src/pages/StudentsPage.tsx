@@ -236,6 +236,7 @@ export default function StudentsPage() {
       const success = await sendEmail(emailData)
       if (success) {
         setSelectedStudents(new Set())
+        queryClient.invalidateQueries({ queryKey: ['email-history'] })
       }
       return success
     } catch (error: any) {

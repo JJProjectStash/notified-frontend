@@ -16,6 +16,7 @@ import {
   ClipboardList,
   Calendar,
   Clock,
+  Mail,
   MapPin,
   Search,
   Plus,
@@ -33,6 +34,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -45,6 +47,7 @@ import { subjectEnrollmentService } from '@/services/subject-enrollment.service'
 import { subjectAttendanceService } from '@/services/subject-attendance.service'
 import { studentService } from '@/services/student.service'
 import { subjectService } from '@/services/subject.service'
+import { getEmailHistory, EmailHistoryRecord } from '@/services/email.service'
 import { cn } from '@/lib/utils'
 
 interface SubjectDetailsModalProps {
@@ -111,6 +114,7 @@ export default function SubjectDetailsModal({
 
   const { addToast } = useToast()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   // --- Initialization & Data Normalization ---
 
@@ -241,6 +245,44 @@ export default function SubjectDetailsModal({
     if (filteredEnrolledStudents.length === 0) return false
     return filteredEnrolledStudents.every((e) => selectedStudents.has(e.studentId))
   }, [filteredEnrolledStudents, selectedStudents])
+
+  // --- Email History (Overview Tab) ---
+  const {
+    data: emailHistoryResponse,
+    isLoading: loadingEmailHistory,
+    refetch: refetchEmailHistory,
+  } = useQuery({
+    queryKey: ['email-history', 'subject', subject?.id],
+    queryFn: () => getEmailHistory(1, 5),
+    enabled: isOpen && !!subject && activeTab === 'overview',
+    staleTime: 1000 * 60 * 2, // 2 minutes
+  })
+
+  const subjectEmails = (emailHistoryResponse?.emails || []).filter((e) =>
+    e.recordType === 'subject' && (String(e.recordData) === String(subject?.id) || String(e.recordData).includes(String(subject?.id)))
+  )
+
+  const getRecipientDisplay = (email: EmailHistoryRecord) => {
+    const isBulk = (email.metadata?.totalRecipients || (email.metadata?.recipients?.length || 0)) > 1
+    if (isBulk) {
+      const recipients = email.metadata?.recipients || []
+      const count = email.metadata?.totalRecipients || recipients.length
+      return {
+        display: `${count} Recipients`,
+        isBulk: true,
+        recipients: recipients,
+        count: count,
+      }
+    }
+
+    const recipient = email.metadata?.recipient || (email.student ? `${email.student.firstName} ${email.student.lastName}` : 'Unknown')
+    return {
+      display: recipient,
+      isBulk: false,
+      recipients: [email.metadata?.recipient || ''],
+      count: 1,
+    }
+  }
 
   // --- Mutations ---
 
@@ -566,6 +608,52 @@ export default function SubjectDetailsModal({
                           <dd className="text-slate-100 font-medium">Year {subject.yearLevel}</dd>
                         </div>
                       </dl>
+                    </div>
+
+                    {/* Recent Email History for Subject */}
+                    <div className="sm:col-span-2 bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700/50">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                        <Mail className="w-5 h-5 text-orange-400" />
+                          Recent Emails
+                        </h3>
+                        <button
+                          onClick={() => navigate('/email-history')}
+                          className="text-xs text-slate-400 hover:text-slate-200"
+                        >
+                          View all
+                        </button>
+                      </div>
+                      {loadingEmailHistory ? (
+                        <div className="text-sm text-slate-400">Loading email history...</div>
+                      ) : subjectEmails.length === 0 ? (
+                        <div className="text-sm text-slate-400">No recent emails for this subject</div>
+                      ) : (
+                        <div className="space-y-3">
+                          {subjectEmails.map((email) => {
+                            const r = getRecipientDisplay(email)
+                            return (
+                              <div key={email._id} className="flex items-start justify-between">
+                                <div className="flex-1 mr-4">
+                                  <div className="text-sm text-slate-200 font-medium">
+                                    {email.metadata?.subject || 'No subject'}
+                                  </div>
+                                  <div className="text-xs text-slate-400 mt-1">
+                                    {new Date(email.createdAt).toLocaleString()}
+                                  </div>
+                                </div>
+                                <div className="text-sm text-slate-200 font-medium text-right">
+                                  {r.isBulk ? (
+                                    <div className="text-xs text-slate-400">{r.display}</div>
+                                  ) : (
+                                    <div className="truncate max-w-[240px]">{r.display}</div>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
 
                     <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700/50 flex flex-col justify-between">
