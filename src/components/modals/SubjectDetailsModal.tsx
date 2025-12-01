@@ -1,10 +1,12 @@
 /**
- * SubjectDetailsModal - Linter Fixed Version
+ * SubjectDetailsModal - Enhanced Version with Optimistic Updates
  *
- * Updates:
- * - Fixed @typescript-eslint/no-unused-expressions error in handleSelectAll
- * - Fixed potential similar error in toggleStudentSelection
- * - Kept all previous fixes (Contrast, Auto-Sync, Unique Keys)
+ * Fixes:
+ * 1. Proper spinner animations for marking attendance
+ * 2. Reflects current attendance status (unmarked/present/late/absent)
+ * 3. Snappy enrollment with optimistic updates
+ * 4. Dynamic attendance stats updates
+ * 5. Real-time enrolled student count
  */
 
 import { useState, useEffect, useMemo } from 'react'
@@ -88,6 +90,9 @@ export default function SubjectDetailsModal({
   const [selectedDate, setSelectedDate] = useState(getLocalDateString())
   const [selectedStudents, setSelectedStudents] = useState<Set<number>>(new Set())
 
+  // Loading states for individual student marking
+  const [markingStudents, setMarkingStudents] = useState<Set<number>>(new Set())
+
   // Dialog States
   const [enrollAllConfirm, setEnrollAllConfirm] = useState(false)
   const [markAllConfirm, setMarkAllConfirm] = useState<{
@@ -127,6 +132,7 @@ export default function SubjectDetailsModal({
       setIsEditingSchedules(false)
       setEditingScheduleIndex(null)
       setSelectedScheduleSlot(null)
+      setMarkingStudents(new Set())
 
       // Force refresh of students list to remove deleted ones
       queryClient.invalidateQueries({ queryKey: ['students'] })
@@ -182,7 +188,6 @@ export default function SubjectDetailsModal({
     queryKey: ['students'],
     queryFn: studentService.getAll,
     enabled: isOpen && activeTab === 'students',
-    // Ensure we don't use stale data from before a deletion
     staleTime: 0,
     refetchOnMount: true,
   })
@@ -206,7 +211,6 @@ export default function SubjectDetailsModal({
 
   const availableStudents = useMemo(() => {
     const enrolledIds = new Set(validEnrolledStudents.map((e) => e.studentId))
-    // Filter out any potential bad data/nulls from allStudents
     return allStudents.filter((s) => s && s.id && !enrolledIds.has(s.id))
   }, [allStudents, validEnrolledStudents])
 
@@ -247,15 +251,11 @@ export default function SubjectDetailsModal({
   }, [filteredEnrolledStudents, selectedStudents])
 
   // --- Email History (Overview Tab) ---
-  const {
-    data: emailHistoryResponse,
-    isLoading: loadingEmailHistory,
-    refetch: refetchEmailHistory,
-  } = useQuery({
+  const { data: emailHistoryResponse, isLoading: loadingEmailHistory } = useQuery({
     queryKey: ['email-history', 'subject', subject?.id],
     queryFn: () => getEmailHistory(1, 5),
     enabled: isOpen && !!subject && activeTab === 'overview',
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    staleTime: 1000 * 60 * 2,
   })
 
   const subjectEmails = (emailHistoryResponse?.emails || []).filter(
@@ -294,23 +294,65 @@ export default function SubjectDetailsModal({
   const enrollMutation = useMutation({
     mutationFn: (studentId: number) =>
       subjectEnrollmentService.enrollStudent({ subjectId: subject!.id, studentId }),
+    onMutate: async (studentId) => {
+      // Optimistic update
+      await queryClient.cancelQueries({ queryKey: ['subjects', subject?.id, 'students'] })
+      const previousData = queryClient.getQueryData(['subjects', subject?.id, 'students'])
+
+      const student = allStudents.find((s) => s.id === studentId)
+      if (student) {
+        queryClient.setQueryData(['subjects', subject?.id, 'students'], (old: any) => [
+          ...(old || []),
+          {
+            id: Date.now(),
+            studentId,
+            subjectId: subject!.id,
+            enrolledAt: new Date().toISOString(),
+            student,
+          },
+        ])
+      }
+
+      return { previousData }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subjects', subject?.id, 'students'] })
+      queryClient.invalidateQueries({ queryKey: ['subjects'] })
       addToast('Student enrolled successfully', 'success')
-      refetchEnrolled()
     },
-    onError: (error: any) => addToast(error?.message || 'Failed to enroll', 'error'),
+    onError: (error: any, _, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(['subjects', subject?.id, 'students'], context.previousData)
+      }
+      addToast(error?.message || 'Failed to enroll', 'error')
+    },
   })
 
   const unenrollMutation = useMutation({
     mutationFn: (studentId: number) =>
       subjectEnrollmentService.unenrollStudent(subject!.id, studentId),
+    onMutate: async (studentId) => {
+      // Optimistic update
+      await queryClient.cancelQueries({ queryKey: ['subjects', subject?.id, 'students'] })
+      const previousData = queryClient.getQueryData(['subjects', subject?.id, 'students'])
+
+      queryClient.setQueryData(['subjects', subject?.id, 'students'], (old: any) =>
+        (old || []).filter((e: any) => e.studentId !== studentId)
+      )
+
+      return { previousData }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subjects', subject?.id, 'students'] })
+      queryClient.invalidateQueries({ queryKey: ['subjects'] })
       addToast('Student removed successfully', 'success')
-      refetchEnrolled()
     },
-    onError: (error: any) => addToast(error?.message || 'Failed to remove', 'error'),
+    onError: (error: any, _, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(['subjects', subject?.id, 'students'], context.previousData)
+      }
+      addToast(error?.message || 'Failed to remove', 'error')
+    },
   })
 
   const enrollAllMutation = useMutation({
@@ -318,8 +360,8 @@ export default function SubjectDetailsModal({
       subjectEnrollmentService.enrollAllStudents(subject!.id, studentIds),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['subjects', subject?.id, 'students'] })
+      queryClient.invalidateQueries({ queryKey: ['subjects'] })
       addToast(`Enrolled ${data.length} students`, 'success')
-      refetchEnrolled()
       setEnrollAllConfirm(false)
     },
     onError: (error: any) => {
@@ -342,13 +384,65 @@ export default function SubjectDetailsModal({
         timeSlot: 'arrival',
         scheduleSlot: data.scheduleSlot,
       }),
+    onMutate: async (variables) => {
+      // Add to marking set
+      setMarkingStudents((prev) => new Set(prev).add(variables.studentId))
+
+      // Optimistic update
+      await queryClient.cancelQueries({
+        queryKey: ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
+      })
+      const previousData = queryClient.getQueryData([
+        'subjects',
+        subject?.id,
+        'attendance',
+        selectedDate,
+        selectedScheduleSlot,
+      ])
+
+      queryClient.setQueryData(
+        ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
+        (old: any) => {
+          const filtered = (old || []).filter((r: any) => r.studentId !== variables.studentId)
+          return [
+            ...filtered,
+            {
+              id: Date.now(),
+              studentId: variables.studentId,
+              subjectId: subject!.id,
+              date: selectedDate,
+              status: variables.status,
+              scheduleSlot: variables.scheduleSlot,
+              timeSlot: 'arrival',
+            },
+          ]
+        }
+      )
+
+      return { previousData }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
       })
-      refetchAttendance()
     },
-    onError: (error: any) => addToast(error?.message || 'Failed to mark', 'error'),
+    onError: (error: any, variables, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(
+          ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
+          context.previousData
+        )
+      }
+      addToast(error?.message || 'Failed to mark', 'error')
+    },
+    onSettled: (_, __, variables) => {
+      // Remove from marking set
+      setMarkingStudents((prev) => {
+        const next = new Set(prev)
+        next.delete(variables.studentId)
+        return next
+      })
+    },
   })
 
   const bulkMarkMutation = useMutation({
@@ -372,7 +466,6 @@ export default function SubjectDetailsModal({
       addToast(`Marked ${variables.studentIds.length} students`, 'success')
       setSelectedStudents(new Set())
       setMarkAllConfirm({ isOpen: false, status: null, scheduleSlot: null })
-      refetchAttendance()
     },
     onError: (error: any) => {
       addToast(error?.message || 'Failed to bulk mark', 'error')
@@ -432,7 +525,6 @@ export default function SubjectDetailsModal({
       const allSelected = filteredEnrolledStudents.every((e) => prev.has(e.studentId))
       const newSelection = new Set(prev)
 
-      // FIXED: Replaced ternary with if/else to satisfy linter
       filteredIds.forEach((id) => {
         if (allSelected) {
           newSelection.delete(id)
@@ -759,7 +851,6 @@ export default function SubjectDetailsModal({
                             </div>
                           ) : (
                             filteredEnrolledStudents.map((enrolled) => (
-                              // FIX: Use unique ID from enrollment record
                               <div
                                 key={enrolled.id}
                                 className="flex items-center justify-between p-3 hover:bg-slate-800/50 rounded-xl transition-colors group"
@@ -782,9 +873,15 @@ export default function SubjectDetailsModal({
                                   variant="ghost"
                                   size="icon"
                                   onClick={() => unenrollMutation.mutate(enrolled.studentId)}
+                                  disabled={unenrollMutation.isPending}
                                   className="h-8 w-8 text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-300 transition-all"
                                 >
-                                  <UserMinus className="w-4 h-4" />
+                                  {unenrollMutation.isPending &&
+                                  unenrollMutation.variables === enrolled.studentId ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <UserMinus className="w-4 h-4" />
+                                  )}
                                 </Button>
                               </div>
                             ))
@@ -808,7 +905,6 @@ export default function SubjectDetailsModal({
                             </div>
                           ) : (
                             availableStudents.map((student) => (
-                              // FIX: Use unique ID from student record
                               <div
                                 key={student.id}
                                 className="flex items-center justify-between p-3 hover:bg-slate-800/50 rounded-xl transition-colors"
@@ -833,7 +929,14 @@ export default function SubjectDetailsModal({
                                   disabled={enrollMutation.isPending}
                                   className="h-8 bg-slate-700 hover:bg-emerald-600 text-white transition-colors"
                                 >
-                                  <Plus className="w-3 h-3 mr-1" /> Enroll
+                                  {enrollMutation.isPending &&
+                                  enrollMutation.variables === student.id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Plus className="w-3 h-3 mr-1" /> Enroll
+                                    </>
+                                  )}
                                 </Button>
                               </div>
                             ))
@@ -966,6 +1069,7 @@ export default function SubjectDetailsModal({
                                 <Button
                                   size="sm"
                                   className="bg-emerald-600 hover:bg-emerald-700"
+                                  disabled={bulkMarkMutation.isPending}
                                   onClick={() =>
                                     bulkMarkMutation.mutate({
                                       studentIds: Array.from(selectedStudents),
@@ -974,11 +1078,16 @@ export default function SubjectDetailsModal({
                                     })
                                   }
                                 >
-                                  Present
+                                  {bulkMarkMutation.isPending ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    'Present'
+                                  )}
                                 </Button>
                                 <Button
                                   size="sm"
                                   className="bg-rose-600 hover:bg-rose-700"
+                                  disabled={bulkMarkMutation.isPending}
                                   onClick={() =>
                                     bulkMarkMutation.mutate({
                                       studentIds: Array.from(selectedStudents),
@@ -987,11 +1096,16 @@ export default function SubjectDetailsModal({
                                     })
                                   }
                                 >
-                                  Absent
+                                  {bulkMarkMutation.isPending ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    'Absent'
+                                  )}
                                 </Button>
                                 <Button
                                   size="sm"
                                   className="bg-amber-600 hover:bg-amber-700"
+                                  disabled={bulkMarkMutation.isPending}
                                   onClick={() =>
                                     bulkMarkMutation.mutate({
                                       studentIds: Array.from(selectedStudents),
@@ -1000,11 +1114,16 @@ export default function SubjectDetailsModal({
                                     })
                                   }
                                 >
-                                  Late
+                                  {bulkMarkMutation.isPending ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    'Late'
+                                  )}
                                 </Button>
                                 <Button
                                   size="sm"
                                   className="bg-purple-600 hover:bg-purple-700"
+                                  disabled={bulkMarkMutation.isPending}
                                   onClick={() =>
                                     bulkMarkMutation.mutate({
                                       studentIds: Array.from(selectedStudents),
@@ -1013,7 +1132,11 @@ export default function SubjectDetailsModal({
                                     })
                                   }
                                 >
-                                  Excused
+                                  {bulkMarkMutation.isPending ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    'Excused'
+                                  )}
                                 </Button>
                               </>
                             ) : (
@@ -1067,9 +1190,9 @@ export default function SubjectDetailsModal({
                             const record = attendanceStatusMap.get(enrolled.studentId)
                             const status = record?.status
                             const isSelected = selectedStudents.has(enrolled.studentId)
+                            const isMarking = markingStudents.has(enrolled.studentId)
 
                             return (
-                              // FIX: Use unique ID from enrollment
                               <div
                                 key={enrolled.id}
                                 className={cn(
@@ -1121,43 +1244,52 @@ export default function SubjectDetailsModal({
 
                                   {/* Quick Actions per row (only if not selected in bulk) */}
                                   {selectedStudents.size === 0 && (
-                                    <div className="flex gap-1 ml-2 opacity-50 hover:opacity-100 transition-opacity">
-                                      <button
-                                        onClick={() =>
-                                          markAttendanceMutation.mutate({
-                                            studentId: enrolled.studentId,
-                                            status: 'present',
-                                            scheduleSlot: selectedScheduleSlot,
-                                          })
-                                        }
-                                        className="p-1 hover:bg-emerald-500/20 rounded text-emerald-500"
-                                      >
-                                        <CheckCircle className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() =>
-                                          markAttendanceMutation.mutate({
-                                            studentId: enrolled.studentId,
-                                            status: 'absent',
-                                            scheduleSlot: selectedScheduleSlot,
-                                          })
-                                        }
-                                        className="p-1 hover:bg-rose-500/20 rounded text-rose-500"
-                                      >
-                                        <XCircle className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() =>
-                                          markAttendanceMutation.mutate({
-                                            studentId: enrolled.studentId,
-                                            status: 'late',
-                                            scheduleSlot: selectedScheduleSlot,
-                                          })
-                                        }
-                                        className="p-1 hover:bg-amber-500/20 rounded text-amber-500"
-                                      >
-                                        <Clock className="w-4 h-4" />
-                                      </button>
+                                    <div className="flex gap-1 ml-2">
+                                      {isMarking ? (
+                                        <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                                      ) : (
+                                        <>
+                                          <button
+                                            onClick={() =>
+                                              markAttendanceMutation.mutate({
+                                                studentId: enrolled.studentId,
+                                                status: 'present',
+                                                scheduleSlot: selectedScheduleSlot,
+                                              })
+                                            }
+                                            className="p-1 hover:bg-emerald-500/20 rounded text-emerald-500 transition-colors"
+                                            title="Mark Present"
+                                          >
+                                            <CheckCircle className="w-4 h-4" />
+                                          </button>
+                                          <button
+                                            onClick={() =>
+                                              markAttendanceMutation.mutate({
+                                                studentId: enrolled.studentId,
+                                                status: 'absent',
+                                                scheduleSlot: selectedScheduleSlot,
+                                              })
+                                            }
+                                            className="p-1 hover:bg-rose-500/20 rounded text-rose-500 transition-colors"
+                                            title="Mark Absent"
+                                          >
+                                            <XCircle className="w-4 h-4" />
+                                          </button>
+                                          <button
+                                            onClick={() =>
+                                              markAttendanceMutation.mutate({
+                                                studentId: enrolled.studentId,
+                                                status: 'late',
+                                                scheduleSlot: selectedScheduleSlot,
+                                              })
+                                            }
+                                            className="p-1 hover:bg-amber-500/20 rounded text-amber-500 transition-colors"
+                                            title="Mark Late"
+                                          >
+                                            <Clock className="w-4 h-4" />
+                                          </button>
+                                        </>
+                                      )}
                                     </div>
                                   )}
                                 </div>
