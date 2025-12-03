@@ -209,7 +209,7 @@ function SubjectDetailsModal({ isOpen, onClose, subject }: SubjectDetailsModalPr
     isLoading: loadingAttendance,
     refetch: refetchAttendance,
   } = useQuery({
-    queryKey: ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
+    queryKey: ['subjects', subject?.id, 'attendance', selectedDate],
     queryFn: () => subjectAttendanceService.getSubjectAttendanceByDate(subject!.id, selectedDate),
     enabled: isOpen && !!subject && activeTab === 'attendance',
   })
@@ -583,9 +583,9 @@ function SubjectDetailsModal({ isOpen, onClose, subject }: SubjectDetailsModalPr
       // Add to marking set
       setMarkingStudents((prev) => new Set(prev).add(variables.studentId))
 
-      // Cancel outgoing queries
+      // Cancel outgoing queries to prevent race conditions
       await queryClient.cancelQueries({
-        queryKey: ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
+        queryKey: ['subjects', subject?.id, 'attendance', selectedDate],
       })
 
       const previousData = queryClient.getQueryData([
@@ -593,14 +593,13 @@ function SubjectDetailsModal({ isOpen, onClose, subject }: SubjectDetailsModalPr
         subject?.id,
         'attendance',
         selectedDate,
-        selectedScheduleSlot,
       ])
 
       // Optimistically update the cache
       queryClient.setQueryData(
-        ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
+        ['subjects', subject?.id, 'attendance', selectedDate],
         (old: any) => {
-          const oldRecords = old || []
+          const oldRecords = Array.isArray(old) ? old : []
           // Remove any existing record for this student (compare as strings for consistency)
           const filtered = oldRecords.filter(
             (r: any) => String(r.studentId) !== String(variables.studentId)
@@ -624,20 +623,54 @@ function SubjectDetailsModal({ isOpen, onClose, subject }: SubjectDetailsModalPr
 
       return { previousData }
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (responseData, variables) => {
       // Play success feedback
       attendanceMarkedFeedback(variables.status)
 
-      // Invalidate to refetch with real data from server
-      queryClient.invalidateQueries({
-        queryKey: ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
-      })
+      // Update the cache with the REAL data from the server response
+      // This prevents the "unmarked" flicker by not invalidating immediately
+      queryClient.setQueryData(
+        ['subjects', subject?.id, 'attendance', selectedDate],
+        (old: any) => {
+          const oldRecords = Array.isArray(old) ? old : []
+          // Remove the temporary/old record for this student
+          const filtered = oldRecords.filter(
+            (r: any) =>
+              String(r.studentId) !== String(variables.studentId) &&
+              String(r.studentId) !== String(responseData?.studentId)
+          )
+          // Add the real record from the server if we got one
+          if (responseData && responseData.id) {
+            return [
+              ...filtered,
+              {
+                ...responseData,
+                studentId: String(responseData.studentId || variables.studentId),
+              },
+            ]
+          }
+          // If no valid response, keep the optimistic record
+          return [
+            ...filtered,
+            {
+              id: `confirmed-${Date.now()}`,
+              studentId: String(variables.studentId),
+              subjectId: subject!.id,
+              date: selectedDate,
+              status: variables.status,
+              scheduleSlot: variables.scheduleSlot,
+              timeSlot: 'arrival',
+              createdAt: new Date().toISOString(),
+            },
+          ]
+        }
+      )
     },
     onError: (error: any, variables, context) => {
       // Rollback on error
       if (context?.previousData) {
         queryClient.setQueryData(
-          ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
+          ['subjects', subject?.id, 'attendance', selectedDate],
           context.previousData
         )
       }
@@ -688,15 +721,95 @@ function SubjectDetailsModal({ isOpen, onClose, subject }: SubjectDetailsModalPr
         timeSlot: 'arrival',
         scheduleSlot: data.scheduleSlot,
       }),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
+    onMutate: async (variables) => {
+      // Cancel outgoing queries to prevent race conditions
+      await queryClient.cancelQueries({
+        queryKey: ['subjects', subject?.id, 'attendance', selectedDate],
       })
+
+      const previousData = queryClient.getQueryData([
+        'subjects',
+        subject?.id,
+        'attendance',
+        selectedDate,
+      ])
+
+      // Optimistically update the cache for all students being marked
+      queryClient.setQueryData(
+        ['subjects', subject?.id, 'attendance', selectedDate],
+        (old: any) => {
+          const oldRecords = Array.isArray(old) ? old : []
+          const markedStudentIds = new Set(variables.studentIds.map(String))
+
+          // Remove existing records for students being marked
+          const filtered = oldRecords.filter((r: any) => !markedStudentIds.has(String(r.studentId)))
+
+          // Add new optimistic records for all students
+          const newRecords = variables.studentIds.map((studentId, idx) => ({
+            id: `temp-bulk-${Date.now()}-${idx}`,
+            studentId: String(studentId),
+            subjectId: subject!.id,
+            date: selectedDate,
+            status: variables.status,
+            scheduleSlot: variables.scheduleSlot,
+            timeSlot: 'arrival',
+            createdAt: new Date().toISOString(),
+          }))
+
+          return [...filtered, ...newRecords]
+        }
+      )
+
+      return { previousData }
+    },
+    onSuccess: (responseData, variables) => {
+      // Update the cache with the REAL data from the server response
+      queryClient.setQueryData(
+        ['subjects', subject?.id, 'attendance', selectedDate],
+        (old: any) => {
+          const oldRecords = Array.isArray(old) ? old : []
+          const markedStudentIds = new Set(variables.studentIds.map(String))
+
+          // Remove temp/old records for students that were marked
+          const filtered = oldRecords.filter((r: any) => !markedStudentIds.has(String(r.studentId)))
+
+          // Add real records from server if available
+          if (Array.isArray(responseData) && responseData.length > 0) {
+            const serverRecords = responseData.map((record: any) => ({
+              ...record,
+              studentId: String(record.studentId),
+            }))
+            return [...filtered, ...serverRecords]
+          }
+
+          // If no valid response, create confirmed records
+          const confirmedRecords = variables.studentIds.map((studentId, idx) => ({
+            id: `confirmed-bulk-${Date.now()}-${idx}`,
+            studentId: String(studentId),
+            subjectId: subject!.id,
+            date: selectedDate,
+            status: variables.status,
+            scheduleSlot: variables.scheduleSlot,
+            timeSlot: 'arrival',
+            createdAt: new Date().toISOString(),
+          }))
+
+          return [...filtered, ...confirmedRecords]
+        }
+      )
+
       addToast(`Marked ${variables.studentIds.length} students`, 'success')
       setSelectedStudents(new Set())
       setMarkAllConfirm({ isOpen: false, status: null, scheduleSlot: null })
     },
-    onError: (error: any) => {
+    onError: (error: any, variables, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        queryClient.setQueryData(
+          ['subjects', subject?.id, 'attendance', selectedDate],
+          context.previousData
+        )
+      }
       addToast(error?.message || 'Failed to bulk mark', 'error')
       setMarkAllConfirm({ isOpen: false, status: null, scheduleSlot: null })
     },
