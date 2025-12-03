@@ -89,10 +89,10 @@ export default function SubjectDetailsModal({
   const [activeTab, setActiveTab] = useState<TabType>('overview')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDate, setSelectedDate] = useState(getLocalDateString())
-  const [selectedStudents, setSelectedStudents] = useState<Set<number>>(new Set())
+  const [selectedStudents, setSelectedStudents] = useState<Set<string | number>>(new Set())
 
   // Loading states for individual student marking
-  const [markingStudents, setMarkingStudents] = useState<Set<number>>(new Set())
+  const [markingStudents, setMarkingStudents] = useState<Set<string | number>>(new Set())
 
   // Dialog States
   const [enrollAllConfirm, setEnrollAllConfirm] = useState(false)
@@ -211,8 +211,9 @@ export default function SubjectDetailsModal({
   }, [attendanceRecords, selectedScheduleSlot])
 
   const availableStudents = useMemo(() => {
-    const enrolledIds = new Set(validEnrolledStudents.map((e) => e.studentId))
-    return allStudents.filter((s) => s && s.id && !enrolledIds.has(s.id))
+    // Convert all enrolled IDs to strings for consistent comparison
+    const enrolledIds = new Set(validEnrolledStudents.map((e) => String(e.studentId)))
+    return allStudents.filter((s) => s && s.id && !enrolledIds.has(String(s.id)))
   }, [allStudents, validEnrolledStudents])
 
   const filteredEnrolledStudents = useMemo(() => {
@@ -238,10 +239,22 @@ export default function SubjectDetailsModal({
     })
   }, [validEnrolledStudents, searchTerm])
 
+  // Build a map of studentId (as string) to attendance record for quick lookup
+  // The backend returns studentId as a string (MongoDB ObjectId), so we normalize all IDs to strings
   const attendanceStatusMap = useMemo(() => {
-    const map = new Map<number, AttendanceRecord>()
+    const map = new Map<string, AttendanceRecord>()
     filteredAttendanceRecords.forEach((record: any) => {
-      map.set(record.studentId, record)
+      // Extract the studentId - could be a string, number, or nested in student object
+      const studentId = record.studentId
+        ? String(record.studentId)
+        : record.student?._id
+          ? String(record.student._id)
+          : record.student
+            ? String(record.student)
+            : null
+      if (studentId) {
+        map.set(studentId, record)
+      }
     })
     return map
   }, [filteredAttendanceRecords])
@@ -373,7 +386,7 @@ export default function SubjectDetailsModal({
 
   const markAttendanceMutation = useMutation({
     mutationFn: (data: {
-      studentId: number
+      studentId: string | number
       status: 'present' | 'absent' | 'late' | 'excused'
       scheduleSlot?: string
     }) =>
@@ -407,14 +420,16 @@ export default function SubjectDetailsModal({
         ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
         (old: any) => {
           const oldRecords = old || []
-          // Remove any existing record for this student
-          const filtered = oldRecords.filter((r: any) => r.studentId !== variables.studentId)
+          // Remove any existing record for this student (compare as strings for consistency)
+          const filtered = oldRecords.filter(
+            (r: any) => String(r.studentId) !== String(variables.studentId)
+          )
           // Add the new optimistic record
           return [
             ...filtered,
             {
               id: `temp-${Date.now()}`,
-              studentId: variables.studentId,
+              studentId: String(variables.studentId), // Store as string for consistency
               subjectId: subject!.id,
               date: selectedDate,
               status: variables.status,
@@ -456,7 +471,7 @@ export default function SubjectDetailsModal({
 
   const bulkMarkMutation = useMutation({
     mutationFn: (data: {
-      studentIds: number[]
+      studentIds: (string | number)[]
       status: 'present' | 'absent' | 'late' | 'excused'
       scheduleSlot?: string
     }) =>
@@ -516,7 +531,7 @@ export default function SubjectDetailsModal({
     setEnrollAllConfirm(true)
   }
 
-  const toggleStudentSelection = (studentId: number, checked: boolean) => {
+  const toggleStudentSelection = (studentId: string | number, checked: boolean) => {
     setSelectedStudents((prev) => {
       const newSelection = new Set(prev)
       if (checked) {
@@ -1196,7 +1211,9 @@ export default function SubjectDetailsModal({
                           filteredEnrolledStudents.map((enrolled) => {
                             const student = enrolled.student
                             if (!student) return null
-                            const record = attendanceStatusMap.get(enrolled.studentId)
+                            // Convert to string for consistent map lookup (backend returns string IDs)
+                            const enrolledStudentId = String(enrolled.studentId)
+                            const record = attendanceStatusMap.get(enrolledStudentId)
                             const status = record?.status
                             const isSelected = selectedStudents.has(enrolled.studentId)
                             const isMarking = markingStudents.has(enrolled.studentId)
