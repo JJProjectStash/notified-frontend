@@ -125,33 +125,31 @@ export default function LandingPage() {
           className="mt-24 text-center"
         >
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-3xl p-12 border border-slate-700/50 shadow-enterprise-xl">
-            <h3 className="text-3xl font-bold text-white mb-12">
-              Trusted by Educational Institutions
-            </h3>
+            <h3 className="text-3xl font-bold text-white mb-12">Built for Modern Education</h3>
             <div className="grid md:grid-cols-4 gap-8">
               <div className="text-center">
                 <p className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400 mb-2">
-                  99.9%
+                  Fast
                 </p>
-                <p className="text-slate-400 font-medium">Uptime</p>
+                <p className="text-slate-400 font-medium">Performance</p>
               </div>
               <div className="text-center">
                 <p className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-violet-400 mb-2">
-                  24/7
+                  Simple
                 </p>
-                <p className="text-slate-400 font-medium">Support</p>
+                <p className="text-slate-400 font-medium">Interface</p>
               </div>
               <div className="text-center">
                 <p className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400 mb-2">
-                  10k+
+                  Secure
                 </p>
-                <p className="text-slate-400 font-medium">Students</p>
+                <p className="text-slate-400 font-medium">Data Handling</p>
               </div>
               <div className="text-center">
                 <p className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-400 mb-2">
-                  500+
+                  Free
                 </p>
-                <p className="text-slate-400 font-medium">Schools</p>
+                <p className="text-slate-400 font-medium">Open Source</p>
               </div>
             </div>
           </div>
