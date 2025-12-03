@@ -132,32 +132,6 @@ Date Range: ${selectedDate || 'All Time'}
           description="Monitor student attendance across all subjects, track attendance status and patterns"
           icon={BookOpen}
           gradient="from-emerald-600 via-teal-600 to-cyan-600"
-          stats={[
-            {
-              label: 'Total Records',
-              value: filteredRecords.length,
-              icon: FileText,
-              color: 'blue',
-            },
-            {
-              label: 'Present',
-              value: present,
-              icon: CheckCircle,
-              color: 'green',
-            },
-            {
-              label: 'Absent',
-              value: absent,
-              icon: XCircle,
-              color: 'red',
-            },
-            {
-              label: "Today's Activity",
-              value: todayRecords.length,
-              icon: Calendar,
-              color: 'purple',
-            },
-          ]}
           actions={[
             {
               label: 'Summary',
