@@ -446,42 +446,73 @@ function SubjectDetailsModal({ isOpen, onClose, subject }: SubjectDetailsModalPr
   ])
 
   // --- Email History (Overview Tab) ---
+  // Fetch more emails to have a better pool to filter from
   const { data: emailHistoryResponse, isLoading: loadingEmailHistory } = useQuery({
-    queryKey: ['email-history', 'subject', subject?.id],
-    queryFn: () => getEmailHistory(1, 20),
+    queryKey: ['email-history', 'recent'],
+    queryFn: () => getEmailHistory(1, 50),
     enabled: isOpen && !!subject && activeTab === 'overview',
     staleTime: 1000 * 10, // 10 seconds - keeps data fresh
     refetchInterval: 1000 * 30, // Auto-refresh every 30 seconds
     refetchOnWindowFocus: true, // Refresh when user returns to tab
   })
 
-  // Filter emails for this subject - check multiple possible fields
+  // Filter emails for students enrolled in this subject
+  // Emails are sent to students when marked absent, so we match by student info
   const subjectEmails = useMemo(() => {
     const emails = emailHistoryResponse?.emails || []
-    if (!subject) return []
+    if (!subject || validEnrolledStudents.length === 0) return []
 
-    // Get subject identifiers to match against
-    const subjectId = String(subject.id)
-    const subjectCode = subject.subjectCode?.toLowerCase() || ''
+    // Get enrolled student identifiers (studentNumber, names, emails)
+    const enrolledStudentNumbers = new Set(
+      validEnrolledStudents.map((e) => e.student?.studentNumber?.toLowerCase()).filter(Boolean)
+    )
+    const enrolledStudentEmails = new Set(
+      validEnrolledStudents.map((e) => e.student?.email?.toLowerCase()).filter(Boolean)
+    )
+    const enrolledStudentNames = new Set(
+      validEnrolledStudents
+        .map((e) => {
+          if (e.student?.firstName && e.student?.lastName) {
+            return `${e.student.firstName} ${e.student.lastName}`.toLowerCase()
+          }
+          return null
+        })
+        .filter(Boolean)
+    )
 
     return emails
       .filter((e) => {
-        // Check recordType if it exists
-        if (e.recordType === 'subject' && String(e.recordData) === subjectId) {
+        // Check if email was sent to an enrolled student by matching:
+        // 1. Student number in the email record
+        if (
+          e.student?.studentNumber &&
+          enrolledStudentNumbers.has(e.student.studentNumber.toLowerCase())
+        ) {
           return true
         }
-        // Check if email metadata contains subject reference
-        if (e.metadata?.subject?.toLowerCase().includes(subjectCode)) {
+        // 2. Student name in email subject line (e.g., "Attendance Alert for John Doe")
+        const emailSubject = e.metadata?.subject?.toLowerCase() || ''
+        for (const name of enrolledStudentNames) {
+          if (name && emailSubject.includes(name)) {
+            return true
+          }
+        }
+        // 3. Recipient email matches enrolled student
+        const recipient = e.metadata?.recipient?.toLowerCase() || ''
+        if (recipient && enrolledStudentEmails.has(recipient)) {
           return true
         }
-        // Check recordData for subject ID
-        if (String(e.recordData) === subjectId) {
-          return true
+        // 4. Check recipients array for bulk emails
+        const recipients = e.metadata?.recipients || []
+        for (const r of recipients) {
+          if (r && enrolledStudentEmails.has(r.toLowerCase())) {
+            return true
+          }
         }
         return false
       })
       .slice(0, 5) // Limit to 5 most recent
-  }, [emailHistoryResponse, subject])
+  }, [emailHistoryResponse, subject, validEnrolledStudents])
 
   const getRecipientDisplay = (email: EmailHistoryRecord) => {
     const isBulk = (email.metadata?.totalRecipients || email.metadata?.recipients?.length || 0) > 1
@@ -1155,37 +1186,48 @@ function SubjectDetailsModal({ isOpen, onClose, subject }: SubjectDetailsModalPr
                         </h3>
                         <button
                           onClick={() => navigate('/email-history')}
-                          className="text-xs text-slate-400 hover:text-slate-200"
+                          className="text-xs text-orange-400 hover:text-orange-300 transition-colors"
                         >
                           View all
                         </button>
                       </div>
                       {loadingEmailHistory ? (
-                        <div className="text-sm text-slate-400">Loading email history...</div>
+                        <div className="flex items-center gap-2 text-sm text-slate-400">
+                          <div className="w-2 h-2 rounded-full bg-orange-400 animate-bounce [animation-delay:-0.3s]" />
+                          <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce [animation-delay:-0.15s]" />
+                          <div className="w-2 h-2 rounded-full bg-yellow-400 animate-bounce" />
+                          <span className="ml-2">Loading...</span>
+                        </div>
                       ) : subjectEmails.length === 0 ? (
-                        <div className="text-sm text-slate-400">
-                          No recent emails for this subject
+                        <div className="text-sm text-slate-400 py-4 text-center">
+                          <Mail className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          No recent emails for enrolled students
                         </div>
                       ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                           {subjectEmails.map((email) => {
                             const r = getRecipientDisplay(email)
                             return (
-                              <div key={email._id} className="flex items-start justify-between">
-                                <div className="flex-1 mr-4">
-                                  <div className="text-sm text-slate-200 font-medium">
-                                    {email.metadata?.subject || 'No subject'}
-                                  </div>
-                                  <div className="text-xs text-slate-400 mt-1">
-                                    {new Date(email.createdAt).toLocaleString()}
-                                  </div>
+                              <div
+                                key={email._id}
+                                className="flex items-center gap-3 p-3 bg-slate-900/50 rounded-xl border border-slate-700/30 hover:border-orange-500/30 transition-colors"
+                              >
+                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
+                                  <Clock className="w-4 h-4 text-orange-400" />
                                 </div>
-                                <div className="text-sm text-slate-200 font-medium text-right">
-                                  {r.isBulk ? (
-                                    <div className="text-xs text-slate-400">{r.display}</div>
-                                  ) : (
-                                    <div className="truncate max-w-[240px]">{r.display}</div>
-                                  )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-slate-200 font-medium truncate">
+                                    {email.metadata?.subject || 'Attendance Alert'}
+                                  </p>
+                                  <p className="text-xs text-slate-400 truncate">To: {r.display}</p>
+                                </div>
+                                <div className="text-xs text-slate-500 flex-shrink-0">
+                                  {new Date(email.createdAt).toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
                                 </div>
                               </div>
                             )
