@@ -8,6 +8,8 @@
  * 4. Dynamic attendance stats updates
  * 5. Real-time enrolled student count
  * 6. Fixed: Students marked status updates immediately (no longer shows "unmarked" after marking)
+ * 7. Defensive programming: Handles non-array API responses gracefully
+ * 8. Error boundary wrapper for graceful error handling
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
@@ -45,6 +47,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
+import ErrorBoundary from '@/components/ui/error-boundary'
 import { useToast } from '@/store/toastStore'
 import { Subject, AttendanceRecord } from '@/types'
 import { SubjectScheduleSlot } from '@/types/subject.types'
@@ -86,11 +89,7 @@ const getLocalDateString = () => {
   return localDate.toISOString().split('T')[0]
 }
 
-export default function SubjectDetailsModal({
-  isOpen,
-  onClose,
-  subject,
-}: SubjectDetailsModalProps) {
+function SubjectDetailsModal({ isOpen, onClose, subject }: SubjectDetailsModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('overview')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDate, setSelectedDate] = useState(getLocalDateString())
@@ -206,7 +205,7 @@ export default function SubjectDetailsModal({
   })
 
   const {
-    data: attendanceRecords = [],
+    data: rawAttendanceRecords,
     isLoading: loadingAttendance,
     refetch: refetchAttendance,
   } = useQuery({
@@ -215,11 +214,32 @@ export default function SubjectDetailsModal({
     enabled: isOpen && !!subject && activeTab === 'attendance',
   })
 
+  // Ensure attendanceRecords is always an array (defensive programming)
+  const attendanceRecords = useMemo(() => {
+    if (!rawAttendanceRecords) return []
+    if (Array.isArray(rawAttendanceRecords)) return rawAttendanceRecords
+    // Handle case where API returns an object with records array
+    if (typeof rawAttendanceRecords === 'object' && 'records' in rawAttendanceRecords) {
+      return Array.isArray((rawAttendanceRecords as any).records)
+        ? (rawAttendanceRecords as any).records
+        : []
+    }
+    // Handle case where API returns an object with data array
+    if (typeof rawAttendanceRecords === 'object' && 'data' in rawAttendanceRecords) {
+      return Array.isArray((rawAttendanceRecords as any).data)
+        ? (rawAttendanceRecords as any).data
+        : []
+    }
+    return []
+  }, [rawAttendanceRecords])
+
   // --- Computations ---
 
   const filteredAttendanceRecords = useMemo(() => {
-    if (!selectedScheduleSlot) return attendanceRecords
-    return attendanceRecords.filter((record: any) => record.scheduleSlot === selectedScheduleSlot)
+    // Ensure we always work with an array
+    const records = Array.isArray(attendanceRecords) ? attendanceRecords : []
+    if (!selectedScheduleSlot) return records
+    return records.filter((record: any) => record.scheduleSlot === selectedScheduleSlot)
   }, [attendanceRecords, selectedScheduleSlot])
 
   const availableStudents = useMemo(() => {
@@ -232,7 +252,10 @@ export default function SubjectDetailsModal({
   // The backend returns studentId as a string (MongoDB ObjectId), so we normalize all IDs to strings
   const attendanceStatusMap = useMemo(() => {
     const map = new Map<string, AttendanceRecord>()
-    filteredAttendanceRecords.forEach((record: any) => {
+    // Defensive check - ensure we have an array before iterating
+    const records = Array.isArray(filteredAttendanceRecords) ? filteredAttendanceRecords : []
+    records.forEach((record: any) => {
+      if (!record) return // Skip null/undefined records
       // Extract the studentId - could be a string, number, or nested in student object
       const studentId = record.studentId
         ? String(record.studentId)
@@ -847,11 +870,15 @@ export default function SubjectDetailsModal({
     { id: 'schedule', label: 'Schedule', icon: Calendar },
   ]
 
+  // Ensure stats computation works even if data is not an array
+  const safeFilteredRecords = Array.isArray(filteredAttendanceRecords)
+    ? filteredAttendanceRecords
+    : []
   const stats = {
-    present: filteredAttendanceRecords.filter((r: any) => r.status === 'present').length,
-    absent: filteredAttendanceRecords.filter((r: any) => r.status === 'absent').length,
-    late: filteredAttendanceRecords.filter((r: any) => r.status === 'late').length,
-    excused: filteredAttendanceRecords.filter((r: any) => r.status === 'excused').length,
+    present: safeFilteredRecords.filter((r: any) => r?.status === 'present').length,
+    absent: safeFilteredRecords.filter((r: any) => r?.status === 'absent').length,
+    late: safeFilteredRecords.filter((r: any) => r?.status === 'late').length,
+    excused: safeFilteredRecords.filter((r: any) => r?.status === 'excused').length,
   }
 
   return (
@@ -1957,3 +1984,33 @@ export default function SubjectDetailsModal({
     </AnimatePresence>
   )
 }
+
+// Wrap the component with ErrorBoundary for graceful error handling
+function SubjectDetailsModalWithErrorBoundary(props: SubjectDetailsModalProps) {
+  return (
+    <ErrorBoundary
+      fallback={
+        props.isOpen ? (
+          <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/80 backdrop-blur-sm">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md mx-4 text-center">
+              <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-8 h-8 text-red-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">Unable to Load Details</h3>
+              <p className="text-sm text-slate-400 mb-6">
+                There was an issue loading the subject details. Please close and try again.
+              </p>
+              <Button onClick={props.onClose} variant="outline" className="border-slate-600">
+                Close
+              </Button>
+            </div>
+          </div>
+        ) : null
+      }
+    >
+      <SubjectDetailsModal {...props} />
+    </ErrorBoundary>
+  )
+}
+
+export default SubjectDetailsModalWithErrorBoundary

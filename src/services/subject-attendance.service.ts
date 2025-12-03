@@ -55,7 +55,9 @@ export const subjectAttendanceService = {
       '/attendance/subject/bulk-mark',
       payload
     )
-    return response.data.data || response.data
+    // Ensure we always return an array
+    const result = response.data?.data ?? response.data
+    return Array.isArray(result) ? result : []
   },
 
   /**
@@ -68,7 +70,21 @@ export const subjectAttendanceService = {
     const response = await apiClient.get<ApiResponse<AttendanceRecord[]>>(
       `/attendance/subject/${subjectId}/date/${date}`
     )
-    return response.data.data || response.data
+    // Ensure we always return an array, handling various API response formats
+    const data = response.data?.data ?? response.data
+    if (Array.isArray(data)) return data
+    if (data && typeof data === 'object' && 'records' in data && Array.isArray(data.records)) {
+      return data.records
+    }
+    if (
+      data &&
+      typeof data === 'object' &&
+      'attendance' in data &&
+      Array.isArray(data.attendance)
+    ) {
+      return data.attendance
+    }
+    return []
   },
 
   /**
