@@ -56,6 +56,7 @@ import { getEmailHistory, EmailHistoryRecord } from '@/services/email.service'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import * as XLSX from 'xlsx'
+import { attendanceMarkedFeedback, selectionFeedback } from '@/utils/feedbackUtils'
 
 interface SubjectDetailsModalProps {
   isOpen: boolean
@@ -94,6 +95,9 @@ export default function SubjectDetailsModal({
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDate, setSelectedDate] = useState(getLocalDateString())
   const [selectedStudents, setSelectedStudents] = useState<Set<string | number>>(new Set())
+  const [statusFilter, setStatusFilter] = useState<
+    'all' | 'present' | 'absent' | 'late' | 'excused' | 'unmarked'
+  >('all')
 
   // Loading states for individual student marking
   const [markingStudents, setMarkingStudents] = useState<Set<string | number>>(new Set())
@@ -224,29 +228,6 @@ export default function SubjectDetailsModal({
     return allStudents.filter((s) => s && s.id && !enrolledIds.has(String(s.id)))
   }, [allStudents, validEnrolledStudents])
 
-  const filteredEnrolledStudents = useMemo(() => {
-    if (!searchTerm) return validEnrolledStudents
-    const term = searchTerm.toLowerCase()
-    return validEnrolledStudents.filter((e) => {
-      const student = e.student
-      if (!student) return false
-      return (
-        String(student.studentNumber ?? '')
-          .toLowerCase()
-          .includes(term) ||
-        String(student.firstName ?? '')
-          .toLowerCase()
-          .includes(term) ||
-        String(student.lastName ?? '')
-          .toLowerCase()
-          .includes(term) ||
-        String(student.email ?? '')
-          .toLowerCase()
-          .includes(term)
-      )
-    })
-  }, [validEnrolledStudents, searchTerm])
-
   // Build a map of studentId (as string) to attendance record for quick lookup
   // The backend returns studentId as a string (MongoDB ObjectId), so we normalize all IDs to strings
   const attendanceStatusMap = useMemo(() => {
@@ -266,6 +247,74 @@ export default function SubjectDetailsModal({
     })
     return map
   }, [filteredAttendanceRecords])
+
+  const filteredEnrolledStudents = useMemo(() => {
+    let filtered = validEnrolledStudents
+
+    // Apply search term filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      filtered = filtered.filter((e) => {
+        const student = e.student
+        if (!student) return false
+        return (
+          String(student.studentNumber ?? '')
+            .toLowerCase()
+            .includes(term) ||
+          String(student.firstName ?? '')
+            .toLowerCase()
+            .includes(term) ||
+          String(student.lastName ?? '')
+            .toLowerCase()
+            .includes(term) ||
+          String(student.email ?? '')
+            .toLowerCase()
+            .includes(term)
+        )
+      })
+    }
+
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((e) => {
+        const studentIdStr = String(e.studentId)
+        const record = attendanceStatusMap.get(studentIdStr)
+
+        if (statusFilter === 'unmarked') {
+          return !record
+        }
+
+        return record?.status === statusFilter
+      })
+    }
+
+    return filtered
+  }, [validEnrolledStudents, searchTerm, statusFilter, attendanceStatusMap])
+
+  // Status counts for filter badges
+  const statusCounts = useMemo(() => {
+    const counts = {
+      all: validEnrolledStudents.length,
+      present: 0,
+      absent: 0,
+      late: 0,
+      excused: 0,
+      unmarked: 0,
+    }
+
+    validEnrolledStudents.forEach((e) => {
+      const studentIdStr = String(e.studentId)
+      const record = attendanceStatusMap.get(studentIdStr)
+
+      if (!record) {
+        counts.unmarked++
+      } else {
+        counts[record.status as keyof typeof counts]++
+      }
+    })
+
+    return counts
+  }, [validEnrolledStudents, attendanceStatusMap])
 
   const allFilteredSelected = useMemo(() => {
     if (filteredEnrolledStudents.length === 0) return false
@@ -553,6 +602,9 @@ export default function SubjectDetailsModal({
       return { previousData }
     },
     onSuccess: (data, variables) => {
+      // Play success feedback
+      attendanceMarkedFeedback(variables.status)
+
       // Invalidate to refetch with real data from server
       queryClient.invalidateQueries({
         queryKey: ['subjects', subject?.id, 'attendance', selectedDate, selectedScheduleSlot],
@@ -1400,17 +1452,34 @@ export default function SubjectDetailsModal({
                     {/* Attendance List */}
                     <div className="bg-slate-800/30 rounded-2xl border border-slate-700/50 overflow-hidden">
                       <div className="p-3 border-b border-slate-700/50 flex items-center gap-3">
-                        <Search className="w-4 h-4 text-slate-400" />
+                        <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
                         <input
                           data-search-input
                           placeholder="Filter student list... (Press / to focus)"
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
-                          className="bg-transparent border-none focus:ring-0 text-sm w-full text-slate-200 placeholder:text-slate-500"
+                          className="bg-transparent border-none focus:ring-0 text-sm flex-1 min-w-0 text-slate-200 placeholder:text-slate-500"
                         />
+                        {/* Status Filter Dropdown with counts */}
+                        <select
+                          value={statusFilter}
+                          onChange={(e) => setStatusFilter(e.target.value as any)}
+                          className="px-2 py-1 text-xs rounded-md border border-slate-600 bg-slate-800 text-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        >
+                          <option value="all">All ({statusCounts.all})</option>
+                          <option value="unmarked">Unmarked ({statusCounts.unmarked})</option>
+                          <option value="present">Present ({statusCounts.present})</option>
+                          <option value="absent">Absent ({statusCounts.absent})</option>
+                          <option value="late">Late ({statusCounts.late})</option>
+                          <option value="excused">Excused ({statusCounts.excused})</option>
+                        </select>
+                        {/* Results count badge */}
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                          {filteredEnrolledStudents.length}
+                        </span>
                         <button
                           onClick={() => setShowShortcutsHint((prev) => !prev)}
-                          className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-400 hover:text-slate-200 transition-colors"
+                          className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-400 hover:text-slate-200 transition-colors flex-shrink-0"
                           title="Keyboard shortcuts (Shift+?)"
                         >
                           <Keyboard className="w-4 h-4" />

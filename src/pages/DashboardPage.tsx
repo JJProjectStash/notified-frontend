@@ -24,6 +24,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { recordService } from '@/services/record.service'
+import { attendanceService } from '@/services/attendance.service'
 import { useAuthStore } from '@/store/authStore'
 import { useToast } from '@/store/toastStore'
 import { ROUTES } from '@/utils/constants'
@@ -123,34 +124,49 @@ export default function DashboardPage() {
     },
   }
 
-  // Enhanced stats with attendance breakdown
+  // Fetch today's attendance breakdown
+  const { data: todayStats, isLoading: loadingTodayStats } = useQuery({
+    queryKey: ['today-attendance-stats'],
+    queryFn: () => attendanceService.getTodayStats(),
+    refetchInterval: 30000, // Refresh every 30 seconds
+  })
+
+  // Enhanced stats with real attendance breakdown
   const enhancedStats: EnhancedDashboardStats = {
     ...stats,
-    todayPresent: stats?.todayRecords || 0,
-    todayAbsent: Math.floor((stats?.totalStudents || 0) * 0.1), // Placeholder - would come from API
-    todayLate: Math.floor((stats?.totalStudents || 0) * 0.05),
-    todayExcused: Math.floor((stats?.totalStudents || 0) * 0.02),
-    attendanceRate: stats?.totalStudents
-      ? Math.round(((stats?.todayRecords || 0) / stats.totalStudents) * 100)
-      : 0,
+    todayPresent: todayStats?.present || 0,
+    todayAbsent: todayStats?.absent || 0,
+    todayLate: todayStats?.late || 0,
+    todayExcused: todayStats?.excused || 0,
+    todayUnmarked: todayStats?.unmarked || 0,
+    attendanceRate: todayStats?.attendanceRate || 0,
   }
 
-  // Mock recent activity - would come from API
+  // Recent activity from today's records
   const recentActivity = [
-    { id: 1, action: 'Attendance marked', subject: 'Mathematics 101', time: new Date(), count: 25 },
+    {
+      id: 1,
+      action: 'Present today',
+      subject: `${enhancedStats.todayPresent} students`,
+      time: new Date(),
+      count: enhancedStats.todayPresent,
+      color: 'emerald',
+    },
     {
       id: 2,
-      action: 'New student enrolled',
-      subject: 'Physics Lab',
-      time: new Date(Date.now() - 3600000),
-      count: 1,
+      action: 'Absent today',
+      subject: `${enhancedStats.todayAbsent} students`,
+      time: new Date(),
+      count: enhancedStats.todayAbsent,
+      color: 'rose',
     },
     {
       id: 3,
-      action: 'Attendance updated',
-      subject: 'English Literature',
-      time: new Date(Date.now() - 7200000),
-      count: 3,
+      action: 'Late arrivals',
+      subject: `${enhancedStats.todayLate} students`,
+      time: new Date(),
+      count: enhancedStats.todayLate,
+      color: 'amber',
     },
   ]
 
@@ -214,7 +230,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 rounded-lg">
                   <Percent className="w-4 h-4 text-emerald-400" />
                   <span className="text-lg font-semibold text-emerald-400">
-                    {isLoading ? '...' : `${enhancedStats.attendanceRate}%`}
+                    {loadingTodayStats ? '...' : `${enhancedStats.attendanceRate}%`}
                   </span>
                   <span className="text-sm text-slate-400">attendance</span>
                 </div>
@@ -232,7 +248,7 @@ export default function DashboardPage() {
                     <span className="text-sm font-medium text-emerald-400">Present</span>
                   </div>
                   <p className="text-3xl font-bold text-slate-100">
-                    {isLoading ? '...' : enhancedStats.todayPresent}
+                    {loadingTodayStats ? '...' : enhancedStats.todayPresent}
                   </p>
                 </motion.div>
 
@@ -246,7 +262,7 @@ export default function DashboardPage() {
                     <span className="text-sm font-medium text-red-400">Absent</span>
                   </div>
                   <p className="text-3xl font-bold text-slate-100">
-                    {isLoading ? '...' : enhancedStats.todayAbsent}
+                    {loadingTodayStats ? '...' : enhancedStats.todayAbsent}
                   </p>
                 </motion.div>
 
@@ -260,7 +276,7 @@ export default function DashboardPage() {
                     <span className="text-sm font-medium text-amber-400">Late</span>
                   </div>
                   <p className="text-3xl font-bold text-slate-100">
-                    {isLoading ? '...' : enhancedStats.todayLate}
+                    {loadingTodayStats ? '...' : enhancedStats.todayLate}
                   </p>
                 </motion.div>
 
@@ -274,7 +290,7 @@ export default function DashboardPage() {
                     <span className="text-sm font-medium text-blue-400">Excused</span>
                   </div>
                   <p className="text-3xl font-bold text-slate-100">
-                    {isLoading ? '...' : enhancedStats.todayExcused}
+                    {loadingTodayStats ? '...' : enhancedStats.todayExcused}
                   </p>
                 </motion.div>
               </div>

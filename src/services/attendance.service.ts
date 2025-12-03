@@ -28,6 +28,16 @@ interface AttendanceSummary {
   attendanceRate: number
 }
 
+interface TodayAttendanceStats {
+  present: number
+  absent: number
+  late: number
+  excused: number
+  unmarked: number
+  total: number
+  attendanceRate: number
+}
+
 export const attendanceService = {
   async getAll(): Promise<Attendance[]> {
     const response = await apiClient.get<Attendance[]>('/attendance')
@@ -42,6 +52,60 @@ export const attendanceService = {
   async getSummary(): Promise<AttendanceSummary> {
     const response = await apiClient.get<AttendanceSummary>('/attendance/summary')
     return response.data
+  },
+
+  /**
+   * Get today's attendance breakdown stats
+   * Calculates present/absent/late/excused counts from today's records
+   */
+  async getTodayStats(): Promise<TodayAttendanceStats> {
+    try {
+      const todayRecords = await this.getToday()
+
+      const stats = {
+        present: 0,
+        absent: 0,
+        late: 0,
+        excused: 0,
+        unmarked: 0,
+        total: todayRecords.length,
+        attendanceRate: 0,
+      }
+
+      todayRecords.forEach((record) => {
+        switch (record.status) {
+          case 'present':
+            stats.present++
+            break
+          case 'absent':
+            stats.absent++
+            break
+          case 'late':
+            stats.late++
+            break
+          case 'excused':
+            stats.excused++
+            break
+        }
+      })
+
+      // Calculate attendance rate (present + late + excused = attended)
+      const attended = stats.present + stats.late + stats.excused
+      stats.attendanceRate = stats.total > 0 ? Math.round((attended / stats.total) * 100) : 0
+
+      return stats
+    } catch (error) {
+      // Return default stats on error
+      return {
+        present: 0,
+        absent: 0,
+        late: 0,
+        excused: 0,
+        unmarked: 0,
+        total: 0,
+        attendanceRate: 0,
+      }
+    }
   },
 
   async getById(id: number): Promise<Attendance> {
