@@ -893,7 +893,7 @@ export function validateRoomNumber(value: string): ValidationResult {
   }
 
   // Allow alphanumeric, spaces, hyphens
-  const roomPattern = /^[A-Za-z0-9\s\-]+$/
+  const roomPattern = /^[A-Za-z0-9\s-]+$/
   if (!roomPattern.test(trimmed)) {
     return { isValid: false, error: 'Room number contains invalid characters' }
   }
@@ -1183,7 +1183,7 @@ export function validatePasswordStrength(
   if (/[a-z]/.test(value)) score++
   if (/[A-Z]/.test(value)) score++
   if (/\d/.test(value)) score++
-  if (/[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/`~;']/.test(value)) score++
+  if (/[!@#$%^&*(),.?":{}|<>_\-+=[]\\\\\/`~;']/.test(value)) score++
 
   // Penalty for common patterns
   if (/(.)\1{2,}/.test(value)) {
