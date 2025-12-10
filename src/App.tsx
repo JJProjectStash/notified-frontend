@@ -71,7 +71,8 @@ function App() {
           <Route path={ROUTES.LOGIN} element={<LoginPage />} />
           <Route path={ROUTES.SIGNUP} element={<SignupPage />} />
 
-          {/* Protected Routes */}
+          {/* Protected Routes - All Roles */}
+          {/* Dashboard: All authenticated users can access */}
           <Route
             path={ROUTES.DASHBOARD}
             element={
@@ -80,6 +81,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          {/* Students: All authenticated users can view, but actions are controlled per-component */}
           <Route
             path={ROUTES.STUDENTS}
             element={
@@ -88,6 +90,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          {/* Subjects: All authenticated users can view, but actions are controlled per-component */}
           <Route
             path={ROUTES.SUBJECTS}
             element={
@@ -96,6 +99,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          {/* Records: All authenticated users can view records */}
           <Route
             path={ROUTES.RECORDS}
             element={
@@ -104,10 +108,11 @@ function App() {
               </ProtectedRoute>
             }
           />
+          {/* Email History: Admin and Registrar only */}
           <Route
             path={ROUTES.EMAIL_HISTORY}
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={['admin', 'superadmin', 'registrar']}>
                 <EmailHistoryPage />
               </ProtectedRoute>
             }

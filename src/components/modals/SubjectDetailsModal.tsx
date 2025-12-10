@@ -191,10 +191,16 @@ function SubjectDetailsModal({ isOpen, onClose, subject }: SubjectDetailsModalPr
     enabled: isOpen && !!subject,
   })
 
-  const validEnrolledStudents = useMemo(
-    () => enrolledStudents.filter((e) => !!e.student),
-    [enrolledStudents]
-  )
+  const validEnrolledStudents = useMemo(() => {
+    const valid = enrolledStudents.filter((e) => !!e.student)
+    const orphanedCount = enrolledStudents.length - valid.length
+    if (orphanedCount > 0 && subject) {
+      console.warn(
+        `[SubjectDetails] Found ${orphanedCount} orphaned enrollment(s) in subject ${subject.subjectCode} - these students may have been deleted but their enrollment records remain`
+      )
+    }
+    return valid
+  }, [enrolledStudents, subject])
 
   const { data: allStudents = [], isLoading: loadingAllStudents } = useQuery({
     queryKey: ['students'],

@@ -14,8 +14,13 @@ export * from './subject.types'
 
 /**
  * User role types for authorization
+ * - professor: Can view subjects, mark attendance, view students
+ * - registrar: Full student/enrollment management
+ * - admin: Full system access
+ * - superadmin: Full system access (legacy alias for admin)
+ * - staff: Limited view-only access (legacy)
  */
-export type UserRole = 'superadmin' | 'admin' | 'staff'
+export type UserRole = 'professor' | 'registrar' | 'admin' | 'superadmin' | 'staff'
 
 /**
  * User entity from the authentication system

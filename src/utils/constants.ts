@@ -19,6 +19,8 @@ export const ROUTES = {
 export const ROLES = {
   SUPERADMIN: 'superadmin',
   ADMIN: 'admin',
+  REGISTRAR: 'registrar',
+  PROFESSOR: 'professor',
   STAFF: 'staff',
 } as const
 

@@ -10,12 +10,14 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 import { useToast } from '@/store/toastStore'
+import { useAuthStore } from '@/store/authStore'
 import { subjectService } from '@/services/subject.service'
 import { subjectEnrollmentService } from '@/services/subject-enrollment.service'
 import { Subject, SubjectFormData } from '@/types'
 import SubjectModal from '@/components/modals/SubjectModal'
 import SubjectDetailsModal from '@/components/modals/SubjectDetailsModal'
 import { useDebounce } from '@/hooks/useDebounce'
+import { canManageSubjects } from '@/utils/permissions'
 
 export default function SubjectsPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -30,6 +32,10 @@ export default function SubjectsPage() {
   }>({ isOpen: false, subject: null })
   const { addToast } = useToast()
   const queryClient = useQueryClient()
+  const { user } = useAuthStore()
+
+  // Permission check for role-based UI
+  const userCanManageSubjects = canManageSubjects(user?.role)
 
   // Fetch subjects
   const { data: subjects = [], isLoading } = useQuery({
@@ -51,7 +57,15 @@ export default function SubjectsPage() {
         subjects.map(async (subject) => {
           try {
             const enrolled = await subjectEnrollmentService.getEnrolledStudents(subject.id)
-            counts[subject.id] = enrolled.length
+            // Filter out orphaned enrollments (deleted students with remaining enrollment records)
+            const validEnrollments = enrolled.filter((e) => e.student != null)
+            const orphanedCount = enrolled.length - validEnrollments.length
+            if (orphanedCount > 0) {
+              console.warn(
+                `[Subjects] Found ${orphanedCount} orphaned enrollment(s) in subject ${subject.subjectCode} - students may have been deleted`
+              )
+            }
+            counts[subject.id] = validEnrollments.length
           } catch (error) {
             console.error(`Failed to fetch enrollment for subject ${subject.id}`, error)
             counts[subject.id] = 0
@@ -207,12 +221,17 @@ export default function SubjectsPage() {
             },
           ]}
           actions={[
-            {
-              label: 'Add Subject',
-              onClick: handleAddSubject,
-              icon: Plus,
-              variant: 'primary',
-            },
+            // Only show Add Subject for users who can manage subjects
+            ...(userCanManageSubjects
+              ? [
+                  {
+                    label: 'Add Subject',
+                    onClick: handleAddSubject,
+                    icon: Plus,
+                    variant: 'primary' as const,
+                  },
+                ]
+              : []),
           ]}
         />
 
@@ -324,6 +343,7 @@ export default function SubjectsPage() {
                         </td>
                         <td className="p-5" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-2">
+                            {/* View - always visible */}
                             <button
                               onClick={() => handleViewDetails(subject)}
                               className="p-2.5 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-blue-500/30"
@@ -331,22 +351,28 @@ export default function SubjectsPage() {
                             >
                               <Eye className="w-4 h-4" />
                             </button>
-                            <button
-                              onClick={() => handleEditSubject(subject)}
-                              disabled={updateMutation.isPending}
-                              className="p-2.5 text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="Edit Subject"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(subject)}
-                              disabled={deleteMutation.isPending}
-                              className="p-2.5 text-red-400 hover:bg-red-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="Delete Subject"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {/* Edit - only for users who can manage subjects */}
+                            {userCanManageSubjects && (
+                              <button
+                                onClick={() => handleEditSubject(subject)}
+                                disabled={updateMutation.isPending}
+                                className="p-2.5 text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Edit Subject"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            )}
+                            {/* Delete - only for users who can manage subjects */}
+                            {userCanManageSubjects && (
+                              <button
+                                onClick={() => handleDelete(subject)}
+                                disabled={deleteMutation.isPending}
+                                className="p-2.5 text-red-400 hover:bg-red-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Delete Subject"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </motion.tr>

@@ -518,3 +518,415 @@ migrate()
 ---
 
 This prompt should be given to the backend developer or used when working on the backend repository to ensure all frontend features work correctly with dynamic data.
+
+---
+
+## 🆕 NEW: Ghost Student Prevention (Cascade Delete)
+
+**Issue:** When a student is deleted, their enrollment records and attendance records remain orphaned in the database, causing "ghost students" to appear in enrollment lists (showing as blank/null entries).
+
+### Required Backend Changes:
+
+#### 1. Update Student Delete Endpoint
+
+When deleting a student via `DELETE /students/:id`, cascade delete related records:
+
+```javascript
+// Route: DELETE /api/students/:id
+router.delete('/:id', authenticateToken, async (req, res) => {
+  try {
+    const studentId = req.params.id
+    
+    // 1. Delete all enrollment records for this student
+    const enrollmentResult = await SubjectEnrollment.deleteMany({ studentId })
+    console.log(`Deleted ${enrollmentResult.deletedCount} enrollment records for student ${studentId}`)
+    
+    // 2. Delete or mark orphaned attendance records
+    const attendanceResult = await Attendance.deleteMany({ studentId })
+    console.log(`Deleted ${attendanceResult.deletedCount} attendance records for student ${studentId}`)
+    
+    // 3. Delete the student
+    const student = await Student.findByIdAndDelete(studentId)
+    
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' })
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Student and all related records deleted successfully',
+      deletedEnrollments: enrollmentResult.deletedCount,
+      deletedAttendance: attendanceResult.deletedCount
+    })
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+```
+
+#### 2. Alternative: Populate and Filter in getEnrolledStudents
+
+If cascade delete is not feasible, ensure the `GET /subjects/:id/enrollments` endpoint filters out null students:
+
+```javascript
+// In the populate, filter out null student references
+const enrollments = await SubjectEnrollment.find({ subjectId })
+  .populate('studentId')
+  .lean()
+
+// Filter out orphaned enrollments
+const validEnrollments = enrollments.filter(e => e.studentId != null)
+```
+
+---
+
+## 🆕 NEW: Role-Based Access Control (RBAC)
+
+**Frontend Update:** The frontend now supports three primary roles with different permissions:
+
+### Role Definitions:
+
+| Role | Permissions |
+|------|-------------|
+| **professor** | View students, view subjects, view/mark attendance, view records, send emails |
+| **registrar** | All of above + create/edit/delete students, create/edit/delete subjects, manage enrollments, export records |
+| **admin** | All permissions including user management |
+
+### Required Backend Changes:
+
+#### 1. Update User Model
+
+Ensure the `User` model `role` field accepts the new roles:
+
+```javascript
+// models/User.js
+const userSchema = new mongoose.Schema({
+  // ... other fields
+  role: {
+    type: String,
+    enum: ['professor', 'registrar', 'admin', 'superadmin', 'staff'],
+    default: 'professor'
+  }
+})
+```
+
+#### 2. Create Role Middleware
+
+```javascript
+// middleware/roleMiddleware.js
+
+const ROLE_PERMISSIONS = {
+  professor: [
+    'view_students', 'view_subjects', 'view_enrollments',
+    'view_attendance', 'mark_attendance', 'view_records',
+    'send_emails', 'view_email_history'
+  ],
+  registrar: [
+    'view_students', 'create_student', 'edit_student', 'delete_student',
+    'view_subjects', 'create_subject', 'edit_subject', 'delete_subject',
+    'view_enrollments', 'manage_enrollments',
+    'view_attendance', 'view_records', 'export_records',
+    'send_emails', 'view_email_history'
+  ],
+  admin: [
+    // All permissions
+    'view_students', 'create_student', 'edit_student', 'delete_student',
+    'view_subjects', 'create_subject', 'edit_subject', 'delete_subject',
+    'view_enrollments', 'manage_enrollments',
+    'view_attendance', 'mark_attendance', 'view_records', 'export_records',
+    'send_emails', 'view_email_history', 'manage_users'
+  ],
+  superadmin: [/* Same as admin */]
+}
+
+const hasPermission = (role, permission) => {
+  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false
+}
+
+const requirePermission = (permission) => {
+  return (req, res, next) => {
+    const userRole = req.user?.role
+    if (!userRole || !hasPermission(userRole, permission)) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Insufficient permissions' 
+      })
+    }
+    next()
+  }
+}
+
+module.exports = { hasPermission, requirePermission }
+```
+
+#### 3. Apply Middleware to Routes
+
+```javascript
+// Example: Protect student management routes
+router.post('/students', 
+  authenticateToken, 
+  requirePermission('create_student'),
+  studentController.create
+)
+
+router.put('/students/:id', 
+  authenticateToken, 
+  requirePermission('edit_student'),
+  studentController.update
+)
+
+router.delete('/students/:id', 
+  authenticateToken, 
+  requirePermission('delete_student'),
+  studentController.delete
+)
+```
+
+---
+
+## 🆕 NEW: Individual Student Records (Future Enhancement)
+
+### Suggested Endpoints for Student Details:
+
+#### 1. Get Student Enrollments
+
+**Endpoint:** `GET /students/:id/enrollments`
+
+```typescript
+interface StudentEnrollmentHistory {
+  id: string
+  subject: {
+    id: string
+    subjectCode: string
+    subjectName: string
+    section: string
+  }
+  enrolledAt: string
+  status: 'active' | 'dropped' | 'completed'
+}
+```
+
+#### 2. Get Student Attendance Summary
+
+**Endpoint:** `GET /students/:id/attendance/summary`
+
+```typescript
+interface StudentAttendanceSummary {
+  totalDays: number
+  present: number
+  absent: number
+  late: number
+  excused: number
+  attendanceRate: number
+  bySubject: Array<{
+    subjectId: string
+    subjectCode: string
+    subjectName: string
+    present: number
+    absent: number
+    late: number
+    excused: number
+    attendanceRate: number
+  }>
+}
+```
+
+---
+
+## 🆕 NEW: Professional Email Templates
+
+**Frontend Update:** The frontend now generates professional HTML email templates with modern styling. The backend should use these templates when sending emails.
+
+### Email Template Structure
+
+The frontend provides an email template generator at `src/utils/email-templates.ts` that creates professional HTML emails with:
+- **Gradient headers** with school branding
+- **Styled content area** with proper typography
+- **Signature block** with sender info
+- **Footer** with copyright information
+
+### API Changes Required
+
+#### 1. Accept HTML Content in Email Endpoint
+
+Update `POST /emails/send` to accept HTML formatted emails:
+
+```typescript
+interface SendEmailRequest {
+  to: string | string[]
+  subject: string
+  message: string          // Plain text message from user input
+  html?: string            // Optional HTML formatted email
+  attachments?: File[]
+}
+```
+
+#### 2. Backend Email Template (Alternative)
+
+If the backend prefers to generate HTML templates server-side, here's the recommended template structure:
+
+```javascript
+// utils/emailTemplate.js
+function generateEmailTemplate({ recipientName, subject, message, senderName, senderRole, schoolName }) {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: #f4f4f7;">
+  <table width="100%" style="background-color: #f4f4f7;">
+    <tr>
+      <td style="padding: 40px 20px;">
+        <table style="max-width: 600px; margin: 0 auto;">
+          <!-- Header with gradient -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #8b5cf6 100%); padding: 40px; border-radius: 16px 16px 0 0; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px;">${schoolName || 'School Administration'}</h1>
+              <p style="margin: 8px 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">Student Management System</p>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style="background: #ffffff; padding: 40px; border-left: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb;">
+              <p style="color: #6b7280;">Dear <strong style="color: #1f2937;">${recipientName}</strong>,</p>
+              <h2 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 16px;">${subject}</h2>
+              <div style="font-size: 15px; color: #374151; line-height: 1.6;">
+                ${message.replace(/\n/g, '<br>')}
+              </div>
+              <hr style="margin: 32px 0; border: none; border-top: 1px solid #e5e7eb;">
+              <div style="color: #6b7280; font-size: 14px;">
+                <p style="margin: 0 0 8px;">Best regards,</p>
+                <p style="margin: 0; font-weight: 600; color: #1f2937;">${senderName}</p>
+                ${senderRole ? `<p style="margin: 4px 0 0; font-size: 13px; color: #9ca3af;">${senderRole}</p>` : ''}
+              </div>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background: #f9fafb; padding: 24px; border-radius: 0 0 16px 16px; text-align: center; border: 1px solid #e5e7eb; border-top: none;">
+              <p style="margin: 0; font-size: 12px; color: #9ca3af;">This is an automated message from the Student Management System.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+}
+```
+
+### Template Types
+
+The frontend supports these template types (backend can implement matching templates):
+
+| Template | Use Case | Function |
+|----------|----------|----------|
+| `generateEmailTemplate` | General emails | Basic styled email with custom message |
+| `generateAttendanceNotificationEmail` | Attendance alerts | Notify guardian of absence/late/excused |
+| `generateWelcomeEmail` | New registration | Welcome email with student number |
+
+### Example Usage
+
+```javascript
+// In your email sending controller
+const { generateEmailTemplate } = require('./utils/emailTemplate');
+
+router.post('/emails/send', async (req, res) => {
+  const { to, subject, message, senderName, senderRole } = req.body;
+  
+  const htmlContent = generateEmailTemplate({
+    recipientName: extractNameFromEmail(to),
+    subject,
+    message,
+    senderName: senderName || req.user.name,
+    senderRole: senderRole || req.user.role,
+    schoolName: process.env.SCHOOL_NAME,
+  });
+  
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to,
+    subject,
+    text: message, // Plain text fallback
+    html: htmlContent,
+  });
+  
+  res.json({ success: true });
+});
+```
+
+---
+
+## 🆕 NEW: Student Status Management
+
+**Frontend Update:** The frontend now displays and filters students by status.
+
+### Status Values
+
+The frontend supports these student status values:
+
+| Status | Color | Description |
+|--------|-------|-------------|
+| `active` | Green | Currently enrolled and attending |
+| `inactive` | Gray | Temporarily not attending |
+| `graduated` | Blue | Completed program |
+| `transferred` | Amber | Transferred to another school |
+| `suspended` | Red | Temporarily suspended |
+| `dropped` | Rose | Dropped out |
+
+### Backend Requirements
+
+#### 1. Student Model Status Field
+
+Ensure the Student model has a `status` field:
+
+```javascript
+const studentSchema = new mongoose.Schema({
+  // ... other fields
+  status: {
+    type: String,
+    enum: ['active', 'inactive', 'graduated', 'transferred', 'suspended', 'dropped'],
+    default: 'active'
+  }
+})
+```
+
+#### 2. API Response Format
+
+The `GET /students` endpoint should return students with their status:
+
+```typescript
+interface Student {
+  id: string
+  studentNumber: string
+  firstName: string
+  lastName: string
+  email: string
+  section?: string
+  guardianName?: string
+  guardianEmail?: string
+  status: 'active' | 'inactive' | 'graduated' | 'transferred' | 'suspended' | 'dropped'
+  createdAt: string
+  updatedAt: string
+}
+```
+
+#### 3. Filter Support (Optional Enhancement)
+
+Consider adding query parameter support for status filtering:
+
+```javascript
+// GET /api/students?status=active
+router.get('/', async (req, res) => {
+  const { status } = req.query
+  const filter = status ? { status } : {}
+  const students = await Student.find(filter)
+  res.json({ success: true, data: students })
+})
+```
+
+---

@@ -12,6 +12,7 @@ import {
   Upload,
   CheckCircle,
   FileText,
+  Eye,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import MainLayout from '@/layouts/MainLayout'
@@ -23,6 +24,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 import { useToast } from '@/store/toastStore'
+import { useAuthStore } from '@/store/authStore'
 import { studentService } from '@/services/student.service'
 import { Student, StudentFormData } from '@/types'
 import StudentModal from '@/components/modals/StudentModal'
@@ -31,6 +33,8 @@ import { parseExcelFile, generateStudentTemplate, exportStudentsToExcel } from '
 import { sendEmail } from '@/services/email.service'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useRef } from 'react'
+import { canManageStudents, canSendEmails, canExportRecords } from '@/utils/permissions'
+import StudentDetailsModal from '@/components/modals/StudentDetailsModal'
 
 export default function StudentsPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -46,9 +50,17 @@ export default function StudentsPage() {
     student: Student | null
   }>({ isOpen: false, student: null })
   const [bulkDeleteConfirmation, setBulkDeleteConfirmation] = useState(false)
+  const [viewingStudent, setViewingStudent] = useState<Student | null>(null)
+  const [statusFilter, setStatusFilter] = useState<string>('all')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { addToast } = useToast()
   const queryClient = useQueryClient()
+  const { user } = useAuthStore()
+
+  // Permission checks for role-based UI
+  const userCanManageStudents = canManageStudents(user?.role)
+  const userCanSendEmails = canSendEmails(user?.role)
+  const userCanExport = canExportRecords(user?.role)
 
   // Fetch students
   const { data: students = [], isLoading } = useQuery({
@@ -156,14 +168,21 @@ export default function StudentsPage() {
     },
   })
 
-  // Filter students based on debounced search
-  const filteredStudents = students.filter(
-    (student) =>
+  // Filter students based on debounced search and status
+  const filteredStudents = students.filter((student) => {
+    // Search filter
+    const matchesSearch =
       student.firstName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
       student.lastName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
       student.studentNumber.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
       student.email.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-  )
+    
+    // Status filter
+    const matchesStatus =
+      statusFilter === 'all' || (student.status || 'active') === statusFilter
+    
+    return matchesSearch && matchesStatus
+  })
 
   // Toggle selection
   const toggleSelection = (id: number) => {
@@ -369,46 +388,60 @@ export default function StudentsPage() {
             },
           ]}
           actions={[
-            {
-              label: 'Import Excel',
-              onClick: () => fileInputRef.current?.click(),
-              icon: Upload,
-              variant: 'outline',
-              disabled: isImporting,
-            },
-            {
-              label: 'Add Student',
-              onClick: () => {
-                setEditingStudent(null)
-                setIsModalOpen(true)
-              },
-              icon: Plus,
-              variant: 'primary',
-            },
+            // Only show import for users who can manage students
+            ...(userCanManageStudents
+              ? [
+                  {
+                    label: 'Import Excel',
+                    onClick: () => fileInputRef.current?.click(),
+                    icon: Upload,
+                    variant: 'outline' as const,
+                    disabled: isImporting,
+                  },
+                ]
+              : []),
+            // Only show add student for users who can manage students
+            ...(userCanManageStudents
+              ? [
+                  {
+                    label: 'Add Student',
+                    onClick: () => {
+                      setEditingStudent(null)
+                      setIsModalOpen(true)
+                    },
+                    icon: Plus,
+                    variant: 'primary' as const,
+                  },
+                ]
+              : []),
           ]}
         />
 
         {/* Toolbar */}
         <div className="bg-slate-800/50 rounded-2xl p-6 shadow-enterprise border border-slate-700/50 backdrop-blur-sm">
           <div className="flex flex-wrap items-center gap-3">
-            <Button
-              variant="outline"
-              className="border-slate-600 bg-slate-800/80 hover:bg-slate-700 hover:border-blue-500 text-slate-200 hover:text-white transition-all h-11 px-5 shadow-enterprise-sm"
-              onClick={handleDownloadTemplate}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Download Template
-            </Button>
-            <Button
-              variant="outline"
-              className="border-slate-600 bg-slate-800/80 hover:bg-slate-700 hover:border-emerald-500 text-slate-200 hover:text-white transition-all h-11 px-5 shadow-enterprise-sm"
-              onClick={handleExportStudents}
-              disabled={students.length === 0}
-            >
-              <FileSpreadsheet className="w-4 h-4 mr-2" />
-              Export Students
-            </Button>
-            {selectedStudents.size > 0 && (
+            {userCanManageStudents && (
+              <Button
+                variant="outline"
+                className="border-slate-600 bg-slate-800/80 hover:bg-slate-700 hover:border-blue-500 text-slate-200 hover:text-white transition-all h-11 px-5 shadow-enterprise-sm"
+                onClick={handleDownloadTemplate}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download Template
+              </Button>
+            )}
+            {userCanExport && (
+              <Button
+                variant="outline"
+                className="border-slate-600 bg-slate-800/80 hover:bg-slate-700 hover:border-emerald-500 text-slate-200 hover:text-white transition-all h-11 px-5 shadow-enterprise-sm"
+                onClick={handleExportStudents}
+                disabled={students.length === 0}
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Export Students
+              </Button>
+            )}
+            {userCanManageStudents && selectedStudents.size > 0 && (
               <Button
                 variant="outline"
                 className="border-red-600 bg-red-900/20 hover:bg-red-900/40 hover:border-red-500 text-red-400 hover:text-red-300 transition-all h-11 px-5 shadow-enterprise-sm"
@@ -419,6 +452,20 @@ export default function StudentsPage() {
                 Delete Selected ({selectedStudents.size})
               </Button>
             )}
+            {/* Status Filter Dropdown */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-11 px-4 rounded-xl border border-slate-600 bg-slate-800/80 text-slate-200 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="graduated">Graduated</option>
+              <option value="transferred">Transferred</option>
+              <option value="suspended">Suspended</option>
+              <option value="dropped">Dropped</option>
+            </select>
             <div className="ml-auto flex items-center gap-2 text-slate-400 text-sm">
               <FileText className="w-4 h-4" />
               <span className="font-medium">
@@ -496,6 +543,9 @@ export default function StudentsPage() {
                   <th className="text-left p-5 font-semibold text-white text-sm tracking-wide">
                     Guardian
                   </th>
+                  <th className="text-left p-5 font-semibold text-white text-sm tracking-wide">
+                    Status
+                  </th>
                   <th className="text-center p-5 font-semibold text-white text-sm tracking-wide">
                     Actions
                   </th>
@@ -506,7 +556,7 @@ export default function StudentsPage() {
                   <TableSkeleton rows={5} columns={8} />
                 ) : filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-0">
+                    <td colSpan={9} className="p-0">
                       <EmptyState
                         icon={Users}
                         title={searchTerm ? 'No students found' : 'No students yet'}
@@ -561,23 +611,56 @@ export default function StudentsPage() {
                       </td>
                       <td className="p-5 text-slate-400 text-sm">{student.guardianName || '-'}</td>
                       <td className="p-5">
+                        {(() => {
+                          const status = student.status || 'active'
+                          const statusConfig: Record<string, { bg: string; text: string; border: string }> = {
+                            active: { bg: 'bg-emerald-500/20', text: 'text-emerald-300', border: 'border-emerald-500/30' },
+                            inactive: { bg: 'bg-slate-500/20', text: 'text-slate-300', border: 'border-slate-500/30' },
+                            graduated: { bg: 'bg-blue-500/20', text: 'text-blue-300', border: 'border-blue-500/30' },
+                            transferred: { bg: 'bg-amber-500/20', text: 'text-amber-300', border: 'border-amber-500/30' },
+                            suspended: { bg: 'bg-red-500/20', text: 'text-red-300', border: 'border-red-500/30' },
+                            dropped: { bg: 'bg-rose-500/20', text: 'text-rose-300', border: 'border-rose-500/30' },
+                          }
+                          const config = statusConfig[status] || statusConfig.inactive
+                          return (
+                            <span className={`inline-flex px-2.5 py-1 ${config.bg} ${config.text} rounded-full text-xs font-medium border ${config.border} capitalize`}>
+                              {status}
+                            </span>
+                          )
+                        })()}
+                      </td>
+                      <td className="p-5">
                         <div className="flex items-center justify-center gap-2">
+                          {/* View - always visible */}
                           <button
-                            onClick={() => handleEditStudent(student)}
-                            disabled={updateMutation.isPending}
-                            className="p-2.5 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Edit"
+                            onClick={() => setViewingStudent(student)}
+                            className="p-2.5 text-slate-400 hover:bg-slate-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-slate-500/30"
+                            title="View Details"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Eye className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => handleDelete(student)}
-                            disabled={deleteMutation.isPending}
-                            className="p-2.5 text-red-400 hover:bg-red-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {/* Edit - only for users who can manage students */}
+                          {userCanManageStudents && (
+                            <button
+                              onClick={() => handleEditStudent(student)}
+                              disabled={updateMutation.isPending}
+                              className="p-2.5 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Edit"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          )}
+                          {/* Delete - only for users who can manage students */}
+                          {userCanManageStudents && (
+                            <button
+                              onClick={() => handleDelete(student)}
+                              disabled={deleteMutation.isPending}
+                              className="p-2.5 text-red-400 hover:bg-red-500/20 rounded-lg transition-all hover:scale-110 border border-transparent hover:border-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </motion.tr>
@@ -654,6 +737,13 @@ export default function StudentsPage() {
         cancelText="Cancel"
         variant="danger"
         isLoading={bulkDeleteMutation.isPending}
+      />
+
+      {/* Student Details Modal */}
+      <StudentDetailsModal
+        isOpen={!!viewingStudent}
+        onClose={() => setViewingStudent(null)}
+        student={viewingStudent}
       />
     </MainLayout>
   )
