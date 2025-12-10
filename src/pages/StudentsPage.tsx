@@ -176,11 +176,10 @@ export default function StudentsPage() {
       student.lastName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
       student.studentNumber.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
       student.email.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-    
+
     // Status filter
-    const matchesStatus =
-      statusFilter === 'all' || (student.status || 'active') === statusFilter
-    
+    const matchesStatus = statusFilter === 'all' || (student.status || 'active') === statusFilter
+
     return matchesSearch && matchesStatus
   })
 
@@ -613,17 +612,46 @@ export default function StudentsPage() {
                       <td className="p-5">
                         {(() => {
                           const status = student.status || 'active'
-                          const statusConfig: Record<string, { bg: string; text: string; border: string }> = {
-                            active: { bg: 'bg-emerald-500/20', text: 'text-emerald-300', border: 'border-emerald-500/30' },
-                            inactive: { bg: 'bg-slate-500/20', text: 'text-slate-300', border: 'border-slate-500/30' },
-                            graduated: { bg: 'bg-blue-500/20', text: 'text-blue-300', border: 'border-blue-500/30' },
-                            transferred: { bg: 'bg-amber-500/20', text: 'text-amber-300', border: 'border-amber-500/30' },
-                            suspended: { bg: 'bg-red-500/20', text: 'text-red-300', border: 'border-red-500/30' },
-                            dropped: { bg: 'bg-rose-500/20', text: 'text-rose-300', border: 'border-rose-500/30' },
+                          const statusConfig: Record<
+                            string,
+                            { bg: string; text: string; border: string }
+                          > = {
+                            active: {
+                              bg: 'bg-emerald-500/20',
+                              text: 'text-emerald-300',
+                              border: 'border-emerald-500/30',
+                            },
+                            inactive: {
+                              bg: 'bg-slate-500/20',
+                              text: 'text-slate-300',
+                              border: 'border-slate-500/30',
+                            },
+                            graduated: {
+                              bg: 'bg-blue-500/20',
+                              text: 'text-blue-300',
+                              border: 'border-blue-500/30',
+                            },
+                            transferred: {
+                              bg: 'bg-amber-500/20',
+                              text: 'text-amber-300',
+                              border: 'border-amber-500/30',
+                            },
+                            suspended: {
+                              bg: 'bg-red-500/20',
+                              text: 'text-red-300',
+                              border: 'border-red-500/30',
+                            },
+                            dropped: {
+                              bg: 'bg-rose-500/20',
+                              text: 'text-rose-300',
+                              border: 'border-rose-500/30',
+                            },
                           }
                           const config = statusConfig[status] || statusConfig.inactive
                           return (
-                            <span className={`inline-flex px-2.5 py-1 ${config.bg} ${config.text} rounded-full text-xs font-medium border ${config.border} capitalize`}>
+                            <span
+                              className={`inline-flex px-2.5 py-1 ${config.bg} ${config.text} rounded-full text-xs font-medium border ${config.border} capitalize`}
+                            >
                               {status}
                             </span>
                           )

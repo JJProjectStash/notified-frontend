@@ -311,9 +311,7 @@ export default function StudentDetailsModal({
                         key={stat.label}
                         className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-4 text-center"
                       >
-                        <stat.icon
-                          className={`w-6 h-6 mx-auto mb-2 text-${stat.color}-400`}
-                        />
+                        <stat.icon className={`w-6 h-6 mx-auto mb-2 text-${stat.color}-400`} />
                         <p className="text-2xl font-bold text-white">{stat.value}</p>
                         <p className="text-xs text-slate-400">{stat.label}</p>
                       </div>

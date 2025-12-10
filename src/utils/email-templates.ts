@@ -36,7 +36,10 @@ export function generateEmailTemplate(data: EmailTemplateData): string {
   // Convert plain text message to HTML paragraphs
   const formattedMessage = message
     .split('\n\n')
-    .map((paragraph) => `<p style="margin: 0 0 16px 0; line-height: 1.6;">${paragraph.replace(/\n/g, '<br>')}</p>`)
+    .map(
+      (paragraph) =>
+        `<p style="margin: 0 0 16px 0; line-height: 1.6;">${paragraph.replace(/\n/g, '<br>')}</p>`
+    )
     .join('')
 
   return `
@@ -186,10 +189,14 @@ export function generateAttendanceNotificationEmail(data: {
     message: `
 We would like to inform you that your child, <strong>${data.studentName}</strong>, ${statusMessages[data.status]} for <strong>${data.subjectName} (${data.subjectCode})</strong> on <strong>${data.date}</strong>.
 
-${data.notes ? `<p style="background-color: #f3f4f6; padding: 16px; border-radius: 8px; border-left: 4px solid ${statusColors[data.status]};">
+${
+  data.notes
+    ? `<p style="background-color: #f3f4f6; padding: 16px; border-radius: 8px; border-left: 4px solid ${statusColors[data.status]};">
 <strong>Note from instructor:</strong><br>
 ${data.notes}
-</p>` : ''}
+</p>`
+    : ''
+}
 
 If you have any questions or concerns regarding this notice, please don't hesitate to contact the school administration.
 

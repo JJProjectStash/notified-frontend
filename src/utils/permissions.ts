@@ -149,20 +149,31 @@ export function hasAllPermissions(role: UserRole | undefined, permissions: Permi
 
 // Convenience functions for common permission checks
 export const canManageStudents = (role?: UserRole) =>
-  hasAnyPermission(role, [PERMISSIONS.CREATE_STUDENT, PERMISSIONS.EDIT_STUDENT, PERMISSIONS.DELETE_STUDENT])
+  hasAnyPermission(role, [
+    PERMISSIONS.CREATE_STUDENT,
+    PERMISSIONS.EDIT_STUDENT,
+    PERMISSIONS.DELETE_STUDENT,
+  ])
 
 export const canViewStudents = (role?: UserRole) => hasPermission(role, PERMISSIONS.VIEW_STUDENTS)
 
 export const canManageSubjects = (role?: UserRole) =>
-  hasAnyPermission(role, [PERMISSIONS.CREATE_SUBJECT, PERMISSIONS.EDIT_SUBJECT, PERMISSIONS.DELETE_SUBJECT])
+  hasAnyPermission(role, [
+    PERMISSIONS.CREATE_SUBJECT,
+    PERMISSIONS.EDIT_SUBJECT,
+    PERMISSIONS.DELETE_SUBJECT,
+  ])
 
 export const canViewSubjects = (role?: UserRole) => hasPermission(role, PERMISSIONS.VIEW_SUBJECTS)
 
-export const canManageEnrollments = (role?: UserRole) => hasPermission(role, PERMISSIONS.MANAGE_ENROLLMENTS)
+export const canManageEnrollments = (role?: UserRole) =>
+  hasPermission(role, PERMISSIONS.MANAGE_ENROLLMENTS)
 
-export const canMarkAttendance = (role?: UserRole) => hasPermission(role, PERMISSIONS.MARK_ATTENDANCE)
+export const canMarkAttendance = (role?: UserRole) =>
+  hasPermission(role, PERMISSIONS.MARK_ATTENDANCE)
 
-export const canViewAttendance = (role?: UserRole) => hasPermission(role, PERMISSIONS.VIEW_ATTENDANCE)
+export const canViewAttendance = (role?: UserRole) =>
+  hasPermission(role, PERMISSIONS.VIEW_ATTENDANCE)
 
 export const canViewRecords = (role?: UserRole) => hasPermission(role, PERMISSIONS.VIEW_RECORDS)
 
