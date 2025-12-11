@@ -21,11 +21,11 @@ import {
 function sanitizeSubjectFormData(data: Partial<Subject>): Partial<Subject> {
   const sanitized: Partial<Subject> = {}
 
-  if (data.name !== undefined) {
-    sanitized.name = sanitizers.name(data.name)
+  if (data.subjectName !== undefined) {
+    sanitized.subjectName = sanitizers.name(data.subjectName)
   }
-  if (data.code !== undefined) {
-    sanitized.code = sanitizers.subjectCode(data.code)
+  if (data.subjectCode !== undefined) {
+    sanitized.subjectCode = sanitizers.subjectCode(data.subjectCode)
   }
   if (data.description !== undefined) {
     sanitized.description = sanitizers.text(data.description || '')
@@ -74,18 +74,18 @@ export const subjectService = {
    */
   async create(data: Partial<Subject>): Promise<Subject> {
     // Validate required fields
-    if (!data.name || !data.code) {
+    if (!data.subjectName || !data.subjectCode) {
       throw new Error('Subject name and code are required')
     }
 
     // Validate subject name
-    const nameValidation = validators.subjectName(data.name)
+    const nameValidation = validators.subjectName(data.subjectName)
     if (!nameValidation.isValid) {
       throw new Error(nameValidation.error)
     }
 
     // Validate subject code
-    const codeValidation = validators.subjectCode(data.code)
+    const codeValidation = validators.subjectCode(data.subjectCode)
     if (!codeValidation.isValid) {
       throw new Error(codeValidation.error)
     }
@@ -137,15 +137,15 @@ export const subjectService = {
     }
 
     // Validate fields if provided
-    if (data.name !== undefined) {
-      const nameValidation = validators.subjectName(data.name)
+    if (data.subjectName !== undefined) {
+      const nameValidation = validators.subjectName(data.subjectName)
       if (!nameValidation.isValid) {
         throw new Error(nameValidation.error)
       }
     }
 
-    if (data.code !== undefined) {
-      const codeValidation = validators.subjectCode(data.code)
+    if (data.subjectCode !== undefined) {
+      const codeValidation = validators.subjectCode(data.subjectCode)
       if (!codeValidation.isValid) {
         throw new Error(codeValidation.error)
       }
