@@ -15,11 +15,14 @@ import {
   validateSubjectForm,
 } from '@/utils/validation-rules'
 
-/**
- * Sanitize subject form data for API submission
- */
-function sanitizeSubjectFormData(data: Partial<Subject>): Partial<Subject> {
-  const sanitized: Partial<Subject> = {}
+// Local type definition to handle both basic subject fields and schedule fields
+type SubjectInput = Partial<Subject> & {
+  schedule?: SubjectSchedule
+  schedules?: SubjectScheduleSlot[]
+}
+
+function sanitizeSubjectFormData(data: SubjectInput): SubjectInput {
+  const sanitized: SubjectInput = {}
 
   if (data.subjectName !== undefined) {
     sanitized.subjectName = sanitizers.name(data.subjectName)
@@ -72,7 +75,7 @@ export const subjectService = {
   /**
    * Create new subject with comprehensive validation
    */
-  async create(data: Partial<Subject>): Promise<Subject> {
+  async create(data: SubjectInput): Promise<Subject> {
     // Validate required fields
     if (!data.subjectName || !data.subjectCode) {
       throw new Error('Subject name and code are required')
@@ -129,7 +132,7 @@ export const subjectService = {
   /**
    * Update subject with comprehensive validation
    */
-  async update(id: string | number, data: Partial<Subject>): Promise<Subject> {
+  async update(id: string | number, data: SubjectInput): Promise<Subject> {
     // Validate ID
     const idStr = String(id)
     if (!idStr || idStr.trim().length === 0) {
